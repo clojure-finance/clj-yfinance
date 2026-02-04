@@ -1,0 +1,34 @@
+# Build artifacts
+target/
+classes/
+pom.xml
+*.jar
+*.class
+
+# Clojure tools
+.cpcache/
+.repl/
+.nrepl-port
+.calva/
+.clj-kondo/.cache/
+.clojure-mcp/
+
+# Leiningen
+.lein-*
+lib/
+
+# Logs and temp
+dev/nrepl.log
+*.log
+*.backup
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
