@@ -55,7 +55,7 @@ A pure Clojure library for fetching financial data from Yahoo Finance. Provides 
 All functions are in the `clj-yfinance.core` namespace.
 
 **Dual API Design:**
-- **Simple API** (`fetch-price`, `fetch-prices`, `fetch-historical`, etc.): Returns data or `nil`/`[]` on failure — backward compatible, minimal code
+- **Simple API** (`fetch-price`, `fetch-prices`, `fetch-historical`, etc.): Returns data or `nil`/`[]` on failure — minimal code, easy to use
 - **Verbose API** (`fetch-price*`, `fetch-prices*`, `fetch-historical*`, etc.): Returns structured result `{:ok? true :data ...}` or `{:ok? false :error {...}}` — for error handling, retries, and debugging
 
 ### Current Prices
@@ -178,9 +178,9 @@ All functions are in the `clj-yfinance.core` namespace.
 
 **Dual API Pattern:**
 - **Simple API** (`fetch-price`, `fetch-prices`, `fetch-historical`, etc.): Thin wrappers that extract `:data` on success, return `nil`/`[]` on failure
-  - Backward compatible with original behavior
+  - Clean, concise interface for common cases
   - Zero side effects (warnings returned as data, not printed)
-  - Minimal code for common cases
+  - Minimal code required
 - **Verbose API** (`fetch-price*`, `fetch-prices*`, `fetch-historical*`, etc.): Returns structured results `{:ok? bool :data/:error ... :request {...} :warnings [...]}`
   - Enables intelligent retry logic (distinguish rate limits vs invalid tickers)
   - Provides detailed error context (`:type`, `:ticker`, `:url`, `:status`, `:message`)
@@ -447,6 +447,24 @@ The following features require Yahoo's quoteSummary API which implements authent
 
 **Async fetching:** Replace `pmap` with core.async channels or manifold for more sophisticated concurrent workflows with bounded parallelism.
 
+**Dataset integration (planned for v0.2.0+):** Integration with tablecloth/tech.ml.dataset for data analysis workflows. Planned features include:
+```clojure
+;; Convert historical data to dataset
+(require '[clj-yfinance.dataset :as yfd])
+
+(-> (yf/fetch-historical "AAPL" :period "1mo")
+    (yfd/historical->dataset :ticker "AAPL"))
+
+;; Multi-ticker analysis
+(yfd/historical-multi->dataset ["AAPL" "GOOGL" "MSFT"] :period "1y")
+
+;; Price comparison dataset
+(-> (yf/fetch-prices ["AAPL" "GOOGL" "MSFT"])
+    (yfd/prices->dataset))
+```
+
+This would enable seamless integration with the Clojure data science ecosystem (tablecloth, noj, scicloj) while keeping the core library lightweight. The dataset namespace would be provided as an optional dependency to avoid forcing tech.ml.dataset on users who don't need it.
+
 ---
 
 ## Recent Improvements (February 2026)
@@ -471,7 +489,7 @@ The library underwent comprehensive code review and hardening with the following
 - `:interrupted` - Thread interrupted during parallel fetch
 - `:timeout` - Future timeout in parallel fetch
 
-All changes maintain backward compatibility for the simple API while enhancing the verbose API's error reporting capabilities.
+All improvements enhance the robustness and error reporting of the library without changing the simple API's behavior.
 
 ---
 

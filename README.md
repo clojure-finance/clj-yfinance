@@ -100,7 +100,7 @@ com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}
 ## API Reference
 
 **Dual API Design:**
-- **Simple API** (`fetch-price`, `fetch-prices`, `fetch-historical`, etc.): Returns data or `nil`/`[]` on failure — easy to use, backward compatible
+- **Simple API** (`fetch-price`, `fetch-prices`, `fetch-historical`, etc.): Returns data or `nil`/`[]` on failure — easy to use, minimal code
 - **Verbose API** (`fetch-price*`, `fetch-prices*`, `fetch-historical*`, etc.): Returns structured `{:ok? true :data ...}` or `{:ok? false :error {...}}` — for error handling and retries
 
 ### `fetch-price` / `fetch-price*`
