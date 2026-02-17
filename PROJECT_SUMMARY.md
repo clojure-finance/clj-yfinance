@@ -359,9 +359,13 @@ The stable core uses Yahoo's public chart endpoint, which requires no authentica
 - **No built-in caching** — every call hits the network. Add `core.memoize` or similar at the application level.
 - **No built-in rate limiting** — aggressive parallel use triggers 429 errors. Use the `:concurrency` option and implement retry logic via the verbose API.
 - **Unofficial API** — Yahoo does not publicly document these endpoints. Check their Terms of Service before commercial use.
-- **Restricted financial statement fields** — Yahoo limits balance sheet and cash flow data. For complete financial statements use Financial Modeling Prep or AlphaVantage.
+- **Restricted financial statement fields** — Yahoo limits balance sheet and cash flow data. For complete financial statements use Financial Modeling Prep or Alpha Vantage.
 
-If you need production-grade data with stable APIs and SLAs: [AlphaVantage](https://www.alphavantage.co/), [Financial Modeling Prep](https://financialmodelingprep.com/), [Polygon.io](https://polygon.io/), [IEX Cloud](https://iexcloud.io/).
+If you need production-grade data with stable APIs and SLAs:
+
+- [Alpha Vantage](https://www.alphavantage.co/) — free tier, solid fundamentals and time series
+- [Financial Modeling Prep](https://site.financialmodelingprep.com/) — comprehensive financials, statements, and screening
+- [Massive](https://massive.com/) (formerly Polygon.io) — professional-grade market data and options
 
 ---
 

@@ -360,14 +360,13 @@ Specific limitations worth knowing:
 - **No built-in caching** — every call hits the network. Add `core.memoize` or similar at the application level if needed.
 - **No built-in rate limiting** — aggressive parallel use will trigger 429 errors. Use the `:concurrency` option on `fetch-prices` and implement retry logic via the verbose API.
 - **Unofficial API** — Yahoo does not publicly document these endpoints. Check their Terms of Service before using in a commercial application.
-- **Financial statement coverage** — Yahoo restricts many balance sheet and cash flow fields. For complete financial statements use Financial Modeling Prep or AlphaVantage.
+- **Financial statement coverage** — Yahoo restricts many balance sheet and cash flow fields. For complete financial statements use Financial Modeling Prep or Alpha Vantage.
 
 If you need production-grade data with stable APIs and SLAs:
 
-- [AlphaVantage](https://www.alphavantage.co/) — free tier, solid fundamentals
-- [Financial Modeling Prep](https://financialmodelingprep.com/) — comprehensive financials and screening
-- [Polygon.io](https://polygon.io/) — professional-grade market data and options
-- [IEX Cloud](https://iexcloud.io/) — real-time and reference data
+- [Alpha Vantage](https://www.alphavantage.co/) — free tier, solid fundamentals and time series
+- [Financial Modeling Prep](https://site.financialmodelingprep.com/) — comprehensive financials, statements, and screening
+- [Massive](https://massive.com/) (formerly Polygon.io) — professional-grade market data and options
 
 ## License
 
