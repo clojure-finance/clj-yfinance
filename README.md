@@ -11,7 +11,7 @@ Pure Clojure client for Yahoo Finance. No Python, no API key required.
 
 ⚠️ **Experimental:** Company fundamentals (P/E, market cap, EPS, margins, analyst targets) - uses Yahoo's authenticated endpoints which may break. See [Experimental Features](#experimental-features-fundamentals) below.
 
-❌ **Not included:** Financial statements, options data, comprehensive analyst estimates - not available without authentication that Yahoo actively blocks.
+❌ **Not yet expanded:** Financial statements, options chains, detailed analyst estimates - same cookie/crumb auth used for fundamentals should support these, but not yet implemented in the experimental namespace.
 
 ## Installation
 
