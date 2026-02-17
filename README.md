@@ -182,6 +182,15 @@ The dataset namespace integrates directly with the rest of the Clojure data scie
     (tc/select-columns [:timestamp :close :returns]))
 ```
 
+For datasets too large to fit in memory, [Clojask](https://github.com/clojure-finance/clojask) can process the data out-of-core. The simplest bridge is writing the dataset to CSV with `ds/write!` and reading it into Clojask with `ck/dataframe`.
+
+```clojure
+(require '[tech.v3.dataset :as ds])
+(require '[clojask.dataframe :as ck])
+(ds/write! (yfd/multi-ticker->dataset ["AAPL" "GOOGL" "MSFT"] :period "5y") "data.csv")
+(def ck-df (ck/dataframe "data.csv"))
+```
+
 ## Experimental: Fundamentals & Company Data
 
 > ⚠️ **EXPERIMENTAL** — uses Yahoo's authenticated `quoteSummary` endpoint via a cookie/crumb session. Works reliably today but Yahoo can change or revoke this at any time without notice. Treat as best-effort, not production-grade.

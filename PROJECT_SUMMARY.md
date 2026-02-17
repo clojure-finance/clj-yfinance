@@ -210,6 +210,15 @@ The `clj-yfinance.dataset` namespace provides five conversion functions that bri
 
 Timestamps are stored as `:int64` (Unix epoch seconds). Convert with `java.time.Instant/ofEpochSecond`.
 
+For datasets too large to fit in memory, [Clojask](https://github.com/clojure-finance/clojask) can process the data out-of-core. The simplest bridge is writing the dataset to CSV with `ds/write!` and reading it into Clojask with `ck/dataframe`.
+
+```clojure
+(require '[tech.v3.dataset :as ds])
+(require '[clojask.dataframe :as ck])
+(ds/write! (yfd/multi-ticker->dataset ["AAPL" "GOOGL" "MSFT"] :period "5y") "data.csv")
+(def ck-df (ck/dataframe "data.csv"))
+```
+
 ---
 
 ## Experimental: Fundamentals & Company Data
