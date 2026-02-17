@@ -391,7 +391,7 @@ Includes:
 - Exchange info: `:currency`, `:exchange-name`, `:full-exchange-name`, `:timezone`, `:gmt-offset`
 - Additional: `:instrument-type`, `:first-trade-date`, `:has-pre-post-market-data`
 
-**Note:** This returns basic metadata from the chart endpoint. For comprehensive fundamentals (P/E ratio, market cap, EPS, sector, industry, financial statements), Yahoo's quoteSummary endpoint requires authentication that is currently blocked. Consider using AlphaVantage or Financial Modeling Prep for these features.
+**Note:** This returns basic metadata from the chart endpoint. For fundamentals (P/E ratio, market cap, EPS, margins, analyst targets), see the experimental `clj-yfinance.experimental.fundamentals` namespace. Financial statements, options, and detailed analyst estimates use the same authentication mechanism and could be added to the experimental namespace in the future.
 
 ## Features
 
@@ -431,7 +431,7 @@ All tests are pure functions with no network calls - they test URL encoding, que
 ## Limitations
 
 - **Experimental fundamentals**: Cookie/crumb auth works but may break when Yahoo changes authentication — use with caution in production
-- **No authentication-required endpoints**: Financial statements, options data, and comprehensive analyst estimates are not available (Yahoo blocks automated access)
+- **Experimental namespace not yet expanded**: Financial statements, options chains, and detailed analyst estimates are not yet implemented - the same cookie/crumb auth used for fundamentals should support these in future
 - **No built-in rate limiting**: Yahoo may throttle aggressive use
 - **No caching**: Add your own with `core.cache` if needed
 - **Unofficial API**: Yahoo could change it, though the chart endpoint (v8) has been stable for years

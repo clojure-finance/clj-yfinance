@@ -6,7 +6,7 @@ A pure Clojure library for fetching financial data from Yahoo Finance. Provides 
 
 **What works:** Price data, historical charts, dividends, splits, basic metadata  
 **Experimental:** Company fundamentals (P/E, market cap, margins, analyst data) via cookie/crumb auth — works but may break  
-**What doesn't:** Financial statements, options, comprehensive analyst estimates (Yahoo actively blocks)
+**Not yet expanded:** Financial statements, options chains, detailed analyst estimates - same auth mechanism, not yet implemented in experimental namespace
 
 **Target use case:** Clojure-based financial applications needing reliable price and historical data without the complexity of authentication or external dependencies.
 
@@ -462,7 +462,7 @@ The library includes several pure functions that can be tested with fixtures:
 
 ### Authentication-Required Features
 
-The following features require Yahoo's quoteSummary API. **Basic fundamentals now work experimentally** via cookie/crumb auth (see `clj-yfinance.experimental.fundamentals`). The following remain unavailable:
+The following features require Yahoo's quoteSummary API. **Basic fundamentals now work experimentally** via cookie/crumb auth (see `clj-yfinance.experimental.fundamentals`). The items below are **not yet implemented** in the experimental namespace - but the same cookie/crumb authentication mechanism should support them and they are candidates for future expansion:
 
 - **Financial statements** (income, balance sheet, cash flow - annual/quarterly)
 - **Options data** (chains, strikes, Greeks)
