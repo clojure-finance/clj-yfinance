@@ -27,10 +27,12 @@ A pure Clojure library for fetching financial data from Yahoo Finance. Provides 
 | Path | Purpose |
 |---|---|
 | `src/clj_yfinance/core.clj` | Public API functions — 10 functions (5 simple + 5 verbose) |
+| `src/clj_yfinance/dataset.clj` | Optional dataset integration (requires tech.ml.dataset) — 5 conversion functions |
 | `src/clj_yfinance/http.clj` | HTTP client, retry logic, request/response handling |
 | `src/clj_yfinance/parse.clj` | JSON parsing, URL encoding, data transformation utilities |
 | `src/clj_yfinance/validation.clj` | Input validation and range checking |
-| `test/clj_yfinance/core_test.clj` | Unit tests for pure functions (105 assertions, no network calls) |
+| `test/clj_yfinance/core_test.clj` | Unit tests for core functions (105 assertions, no network calls) |
+| `test/clj_yfinance/dataset_test.clj` | Unit tests for dataset conversions (requires tech.ml.dataset) |
 | `deps.edn` | Deps.edn project file for Clojure CLI users |
 | `project.clj` | Leiningen project file for Leiningen users |
 | `README.md` | Library documentation with usage examples |
@@ -172,6 +174,52 @@ All functions are in the `clj-yfinance.core` namespace.
 ;; Use AlphaVantage or Financial Modeling Prep for these features.
 ```
 
+### Dataset API (Optional)
+
+All functions in the `clj-yfinance.dataset` namespace. Requires adding `techascent/tech.ml.dataset` to your `deps.edn`.
+
+```clojure
+;; Convert historical data to dataset
+(historical->dataset ticker & opts)
+;; Returns: tech.v3.dataset or nil
+;; Columns: :timestamp (int64), :open/:high/:low/:close/:adj-close (float64), :volume (int64)
+;; Example: (historical->dataset "AAPL" :period "1mo")
+
+;; Convert already-fetched data
+(historical->dataset data)
+
+;; Convert price map to dataset
+(prices->dataset prices-map)
+;; Returns: tech.v3.dataset with :ticker (string) and :price (float64) columns
+;; Example: (prices->dataset (yf/fetch-prices ["AAPL" "GOOGL"]))
+
+;; Multi-ticker combined dataset
+(multi-ticker->dataset tickers & opts)
+;; Returns: Single dataset with :ticker column for grouping
+;; Example: (multi-ticker->dataset ["AAPL" "GOOGL" "MSFT"] :period "1y")
+
+;; Dividends and splits as datasets
+(dividends-splits->dataset ticker & opts)
+;; Returns: {:dividends dataset, :splits dataset}
+;; Dividend columns: :timestamp (int64), :amount (float64)
+;; Split columns: :timestamp (int64), :numerator/:denominator (int64)
+
+;; Ticker info as single-row dataset
+(info->dataset ticker)
+;; Returns: Single-row dataset with all metadata fields
+
+;; Works seamlessly with tablecloth, noj, and datajure
+(require '[tablecloth.api :as tc])
+(-> (historical->dataset "AAPL" :period "1mo")
+    (tc/add-column :returns (fn [ds] ...)))
+
+;; For Clojask (parallel/out-of-core processing - not directly supported)
+;; Convert as needed for datasets too large for memory (100GB+):
+(require '[clojask.api :as ck])
+(def dk (ck/dataframe (yf/fetch-historical "AAPL" :period "10y")))
+;; Or from dataset: (ck/dataframe (tc/rows (historical->dataset ...) :as-maps))
+```
+
 ---
 
 ## Architecture & Implementation Details
@@ -280,8 +328,9 @@ All functions are in the `clj-yfinance.core` namespace.
 - All errors handled gracefully with per-ticker structured error responses (no batch failures)
 
 **Code Organization:**
-- **4 namespace split** for separation of concerns:
+- **5 namespace split** for separation of concerns:
   - `clj-yfinance.core` - Public API (simple + verbose functions)
+  - `clj-yfinance.dataset` - Optional dataset integration (requires tech.ml.dataset)
   - `clj-yfinance.http` - HTTP layer with retry and timeout logic
   - `clj-yfinance.parse` - Pure parsing and transformation functions
   - `clj-yfinance.validation` - Input validation (strict) and warnings (permissive)
@@ -303,8 +352,14 @@ Connects on **port 7888** for interactive development.
 The library includes unit tests for all pure functions:
 
 ```bash
-# Run all tests
+# Core library tests (no network calls)
 clojure -M:test -e "(require 'clj-yfinance.core-test) (clj-yfinance.core-test/run-tests)"
+
+# Dataset tests (requires tech.ml.dataset)
+clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.dataset-test/run-tests)"
+
+# Run all tests
+clojure -M:test:dataset -e "(require 'clj-yfinance.core-test 'clj-yfinance.dataset-test) (clojure.test/run-all-tests #\"clj-yfinance.*-test\")"
 ```
 
 Tests cover:
@@ -318,6 +373,7 @@ Tests cover:
 - Retry logic (retryable vs non-retryable errors)
 - Key normalization (camelCase to kebab-case conversion)
 - Future timeout handling in parallel fetches
+- Dataset conversions with proper column types
 
 All tests are **pure** - no network calls required. They use fixtures to test parsing logic and validation without hitting Yahoo's API.
 
@@ -447,23 +503,34 @@ The following features require Yahoo's quoteSummary API which implements authent
 
 **Async fetching:** Replace `pmap` with core.async channels or manifold for more sophisticated concurrent workflows with bounded parallelism.
 
-**Dataset integration (planned for v0.2.0+):** Integration with tablecloth/tech.ml.dataset for data analysis workflows. Planned features include:
+**Dataset integration (v0.1.0+):** The library includes optional integration with tech.ml.dataset for data analysis workflows. See the `clj-yfinance.dataset` namespace for:
+
 ```clojure
 ;; Convert historical data to dataset
 (require '[clj-yfinance.dataset :as yfd])
 
-(-> (yf/fetch-historical "AAPL" :period "1mo")
-    (yfd/historical->dataset :ticker "AAPL"))
+(yfd/historical->dataset "AAPL" :period "1mo")
+;; => #tech.v3.dataset with typed columns
 
 ;; Multi-ticker analysis
-(yfd/historical-multi->dataset ["AAPL" "GOOGL" "MSFT"] :period "1y")
+(yfd/multi-ticker->dataset ["AAPL" "GOOGL" "MSFT"] :period "1y")
+;; => Single dataset with :ticker column
 
 ;; Price comparison dataset
 (-> (yf/fetch-prices ["AAPL" "GOOGL" "MSFT"])
     (yfd/prices->dataset))
+;; => Dataset with :ticker and :price columns
+
+;; Dividends and splits
+(yfd/dividends-splits->dataset "AAPL" :period "10y")
+;; => {:dividends dataset, :splits dataset}
+
+;; Ticker info
+(yfd/info->dataset "AAPL")
+;; => Single-row dataset with metadata
 ```
 
-This would enable seamless integration with the Clojure data science ecosystem (tablecloth, noj, scicloj) while keeping the core library lightweight. The dataset namespace would be provided as an optional dependency to avoid forcing tech.ml.dataset on users who don't need it.
+The dataset namespace works seamlessly with tablecloth, noj, and datajure while keeping the core library lightweight (tech.ml.dataset is an optional dependency).
 
 ---
 
@@ -482,6 +549,16 @@ The library underwent comprehensive code review and hardening with the following
 6. **Distribution hygiene** - Removed `.cpcache/` build artifacts and `VERIFICATION.md` file with inconsistencies
 7. **Documentation accuracy** - Corrected group ID from `io.github.clojure-finance` to `com.github.clojure-finance` to match existing clojure-finance organization pattern on Clojars
 8. **Publication status** - Clearly documented that library is not yet published with instructions for current usage
+
+### New Features
+9. **Dataset integration** - Added `clj-yfinance.dataset` namespace with 5 conversion functions for tech.ml.dataset integration
+   - `historical->dataset` - Convert OHLCV data with proper column types
+   - `prices->dataset` - Convert price maps to datasets
+   - `multi-ticker->dataset` - Combine multiple tickers with :ticker column
+   - `dividends-splits->dataset` - Separate datasets for dividends and splits
+   - `info->dataset` - Single-row dataset for ticker metadata
+   - Works seamlessly with tablecloth, noj, and datajure
+   - tech.ml.dataset remains optional dependency (core library stays lightweight)
 
 ### Error Type Additions
 - `:no-data` - Empty result array from API

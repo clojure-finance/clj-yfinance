@@ -97,6 +97,110 @@ com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}
 ;;     :errors {"INVALID" {:type :http-error :status 404 ...}}}
 ```
 
+## Dataset Integration (Optional)
+
+For integration with Clojure's data science ecosystem (tech.ml.dataset, tablecloth, noj), add to your `deps.edn`:
+
+```clojure
+{:deps {techascent/tech.ml.dataset {:mvn/version "7.032"}}}
+```
+
+Then use the dataset namespace:
+
+```clojure
+(require '[clj-yfinance.dataset :as yfd])
+
+;; Convert historical data to tech.v3.dataset
+(yfd/historical->dataset "AAPL" :period "1mo")
+;; => #tech.v3.dataset with typed columns [:timestamp :open :high :low :close :volume :adj-close]
+
+;; Convert price map to dataset
+(def prices (yf/fetch-prices ["AAPL" "GOOGL" "MSFT"]))
+(yfd/prices->dataset prices)
+;; => #tech.v3.dataset with columns [:ticker :price]
+
+;; Multi-ticker analysis in single dataset
+(yfd/multi-ticker->dataset ["AAPL" "GOOGL" "MSFT"] :period "1y")
+;; => #tech.v3.dataset with :ticker column for grouping
+
+;; Dividends and splits as datasets
+(yfd/dividends-splits->dataset "AAPL" :period "10y")
+;; => {:dividends #tech.v3.dataset, :splits #tech.v3.dataset}
+
+;; Ticker info as single-row dataset
+(yfd/info->dataset "AAPL")
+```
+
+### Works Automatically With:
+
+**tablecloth** (ergonomic data manipulation):
+```clojure
+(require '[tablecloth.api :as tc])
+
+(-> (yfd/historical->dataset "AAPL" :period "1mo")
+    (tc/add-column :returns (fn [ds] 
+                              (let [closes (ds :close)]
+                                (map / (rest closes) closes))))
+    (tc/select-columns [:timestamp :close :returns]))
+```
+
+**noj** (notebook environment with visualization):
+```clojure
+(require '[scicloj.noj.v1.api :as noj])
+
+;; Interactive visualization in notebooks
+(noj/view (yfd/historical->dataset "AAPL" :period "1mo"))
+```
+
+**datajure** (R-like tidyverse syntax):
+```clojure
+(require '[datajure.dplyr :as dplyr])
+
+(-> (yfd/historical->dataset "AAPL" :period "1mo")
+    (dplyr/mutate :returns '(/ close (lag close)))
+    (dplyr/filter '(> returns 0.01)))
+```
+
+### Converting to Clojask (Parallel/Out-of-Core Processing)
+
+**Note:** Clojask uses a different paradigm (lazy parallel processing for huge datasets). It's not directly supported, but you can convert as needed:
+
+```clojure
+(require '[clojask.api :as ck])
+
+;; Option 1: Convert from raw data (maps)
+(def raw-data (yf/fetch-historical "AAPL" :period "10y"))
+(def dk (ck/dataframe raw-data))
+
+;; Option 2: Convert from tech.v3.dataset
+(require '[tablecloth.api :as tc])
+(def ds (yfd/historical->dataset "AAPL" :period "10y"))
+(def dk (ck/dataframe (tc/rows ds :as-maps)))
+
+;; Now use Clojask's parallel operations
+(ck/operate dk ...)
+(ck/compute dk)
+```
+
+Clojask is designed for datasets too large for memory (100GB+). For typical financial data from Yahoo Finance (even 10 years of minute bars), tech.v3.dataset's in-memory approach is simpler and faster.
+
+### Column Types
+
+All datasets use proper type specifications for performance:
+
+- **Timestamps**: `:int64` (Unix epoch seconds)
+- **Prices** (open/high/low/close/adj-close): `:float64`
+- **Volume**: `:int64`
+- **Tickers**: `:string`
+
+Convert timestamps to dates as needed:
+```clojure
+(require '[tech.v3.datatype.datetime :as dtype-dt])
+(dtype-dt/instant->zoned-date-time 
+  (java.time.Instant/ofEpochSecond timestamp) 
+  (java.time.ZoneId/of "America/New_York"))
+```
+
 ## API Reference
 
 **Dual API Design:**
@@ -211,10 +315,17 @@ Includes:
 ### Running Tests
 
 ```bash
+# Core library tests (no network calls)
 clojure -M:test -e "(require 'clj-yfinance.core-test) (clj-yfinance.core-test/run-tests)"
+
+# Dataset tests (requires tech.ml.dataset)
+clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.dataset-test/run-tests)"
+
+# Run all tests
+clojure -M:test:dataset -e "(require 'clj-yfinance.core-test 'clj-yfinance.dataset-test) (clojure.test/run-all-tests #\"clj-yfinance.*-test\")"
 ```
 
-All tests are pure functions with no network calls - they test URL encoding, query building, validation logic, and JSON parsing using fixtures.
+All tests are pure functions with no network calls - they test URL encoding, query building, validation logic, JSON parsing, and dataset conversions using fixtures.
 
 ## Limitations
 

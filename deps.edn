@@ -6,4 +6,7 @@
    :main-opts ["-m" "nrepl.cmdline" "--port" "7888"]}
 
   :test
-  {:extra-paths ["test"]}}}
+  {:extra-paths ["test"]}
+
+  :dataset
+  {:extra-deps {techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
