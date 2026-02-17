@@ -5,7 +5,8 @@
 A pure Clojure library for fetching financial data from Yahoo Finance. Provides zero-dependency (aside from JSON parsing) access to current prices, historical OHLCV data, dividends/splits, and basic ticker information. No Python required, no API keys needed. Uses Java 11+ built-in `HttpClient` for HTTP requests.
 
 **What works:** Price data, historical charts, dividends, splits, basic metadata  
-**What doesn't:** Financial statements, options, comprehensive fundamentals (blocked by Yahoo's authentication)
+**Experimental:** Company fundamentals (P/E, market cap, margins, analyst data) via cookie/crumb auth — works but may break  
+**What doesn't:** Financial statements, options, comprehensive analyst estimates (Yahoo actively blocks)
 
 **Target use case:** Clojure-based financial applications needing reliable price and historical data without the complexity of authentication or external dependencies.
 
@@ -31,8 +32,11 @@ A pure Clojure library for fetching financial data from Yahoo Finance. Provides 
 | `src/clj_yfinance/http.clj` | HTTP client, retry logic, request/response handling |
 | `src/clj_yfinance/parse.clj` | JSON parsing, URL encoding, data transformation utilities |
 | `src/clj_yfinance/validation.clj` | Input validation and range checking |
+| `src/clj_yfinance/experimental/auth.clj` | ⚠️ Experimental: Cookie/crumb session management for Yahoo auth |
+| `src/clj_yfinance/experimental/fundamentals.clj` | ⚠️ Experimental: Fundamentals via quoteSummary (P/E, margins, analyst data) |
 | `test/clj_yfinance/core_test.clj` | Unit tests for core functions (105 assertions, no network calls) |
 | `test/clj_yfinance/dataset_test.clj` | Unit tests for dataset conversions (requires tech.ml.dataset) |
+| `test/clj_yfinance/experimental/auth_test.clj` | Unit tests for auth session logic (14 assertions, no network calls) |
 | `deps.edn` | Deps.edn project file for Clojure CLI users |
 | `project.clj` | Leiningen project file for Leiningen users |
 | `README.md` | Library documentation with usage examples |
@@ -458,22 +462,25 @@ The library includes several pure functions that can be tested with fixtures:
 
 ### Authentication-Required Features
 
-The following features require Yahoo's quoteSummary API which implements authentication that blocks automated access:
+The following features require Yahoo's quoteSummary API. **Basic fundamentals now work experimentally** via cookie/crumb auth (see `clj-yfinance.experimental.fundamentals`). The following remain unavailable:
 
 - **Financial statements** (income, balance sheet, cash flow - annual/quarterly)
 - **Options data** (chains, strikes, Greeks)
-- **Comprehensive fundamentals** (P/E ratio, market cap, EPS, ROE, profit margins)
 - **Company details** (sector, industry, description, employees)
-- **Analyst data** (recommendations, price targets, estimates)
-- **Insider/institutional holdings**
+- **Insider/institutional holdings** (detailed breakdown)
 
-**Why not implemented:**
-- Yahoo requires cookie/crumb authentication
-- The crumb is no longer in predictable HTML locations
-- Even Python's yfinance (actively maintained, large community) has ongoing issues with auth
-- Implementation would be fragile and break frequently
+**Features now available experimentally:**
+- **Key fundamentals** (P/E ratio, market cap, EPS, ROE, profit margins) ✅
+- **Analyst data** (recommendations, price targets, number of analysts) ✅
+- **Key statistics** (beta, enterprise value, shares outstanding, short interest) ✅
 
-**Recommended alternatives:**
+**Why experimental (not stable):**
+- Yahoo requires cookie/crumb authentication obtained from `fc.yahoo.com`
+- Authentication mechanism can change at any time without notice
+- Session reuse and proactive refresh mitigate rate limiting but don't eliminate it
+- Fragile by nature — treat as best-effort, not production-grade
+
+**Recommended stable alternatives:**
 - [AlphaVantage](https://www.alphavantage.co/) - Free tier, good fundamentals
 - [Financial Modeling Prep](https://financialmodelingprep.com/) - Comprehensive financials
 - [Polygon.io](https://polygon.io/) - Professional-grade data
@@ -570,6 +577,64 @@ All improvements enhance the robustness and error reporting of the library witho
 
 ---
 
+## Experimental Features (February 2026)
+
+Added `clj-yfinance.experimental` namespace with cookie/crumb authentication and fundamentals data fetching. **Verified working against live Yahoo Finance API.**
+
+### Architecture
+
+**Session management** (`clj-yfinance.experimental.auth`):
+- Singleton session atom shared across all requests
+- Cookie acquisition from `https://fc.yahoo.com` (expects 404, sets cookies)
+- Crumb fetching from `https://query2.finance.yahoo.com/v1/test/getcrumb`
+- Proactive 1-hour session refresh
+- MAX 1 automatic retry on 401 errors (prevents hammering Yahoo)
+- Structured logging via `println` with `[clj-yfinance.experimental.auth]` prefix
+
+**Session structure:**
+```clojure
+{:http-client    <HttpClient with CookieManager>
+ :cookie-handler <CookieManager>
+ :crumb          "Zcwe7K.UzyF"
+ :created-at     1771295552000
+ :status         :active}   ; or :uninitialized, :failed
+```
+
+**Fundamentals API** (`clj-yfinance.experimental.fundamentals`):
+- Fetches from `quoteSummary` endpoint with `financialData,defaultKeyStatistics` modules
+- Returns ALL fields from Yahoo (100+ fields, no filtering)
+- Numeric values as `{:raw <number> :fmt <string>}` maps
+- Dual API: `fetch-fundamentals` (simple) and `fetch-fundamentals*` (verbose)
+- Verbose error messages with actionable `:suggestion` field
+
+**Error types added:**
+- `:auth-failed` - Cookie/crumb refresh failed after retry
+- `:session-failed` - Session could not initialize
+- `:api-error` - Yahoo returned error in response body
+- `:missing-data` - No quoteSummary result in response
+- `:rate-limited` - HTTP 429
+- `:request-failed` - Network/connection error
+
+### Testing
+
+**Unit tests** (`test/clj_yfinance/experimental/auth_test.clj`): 5 tests, 14 assertions, no network calls. Tests cover session age calculation, expiration detection, singleton identity, and session info reporting.
+
+**Known issue fixed:** The original `auth_test.clj` was missing `[clj-yfinance.experimental.auth]` in its `ns` `:require` form, causing a compile error when accessing private vars via `#'`. Fixed by adding the require; all tests pass.
+
+**Run tests:**
+```bash
+clojure -M:test -e "(require 'clj-yfinance.experimental.auth-test) (clj-yfinance.experimental.auth-test/run-tests)"
+# => Ran 5 tests containing 14 assertions. 0 failures, 0 errors.
+```
+
+**Live API validation (February 2026) - verified on both warm and fresh REPL:**
+- ✅ Session initialization: cookie from `fc.yahoo.com` + crumb from `getcrumb` in ~1600ms
+- ✅ `fetch-fundamentals* "AAPL"` returns 100+ fields including market cap, P/E, margins, analyst targets
+- ✅ Session reuse: second call to `fetch-fundamentals "MSFT"` uses cached session (no re-auth)
+- ✅ Invalid ticker: `fetch-fundamentals* "INVALIDXYZ999"` returns `{:ok? false :error {:type :http-error :status 404 ...}}`
+
+---
+
 ## Publishing (Not Yet Released)
 
 **Current Status:** This library is not yet published to Clojars.
@@ -599,7 +664,8 @@ com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}
 
 ## Limitations & Disclaimers
 
-- **No authenticated endpoints** — Financial statements, options, and comprehensive fundamentals unavailable
+- **Experimental fundamentals** — Cookie/crumb auth works but may break when Yahoo changes authentication; treat as best-effort
+- **No stable authenticated endpoints** — Financial statements, options, and detailed analyst estimates remain unavailable
 - **Unofficial API** — Yahoo Finance chart endpoint (v8) is not officially documented but has been stable for years
 - **No built-in rate limiting** — Aggressive use may trigger 429 responses; implement retry logic using `fetch-*` functions
 - **No caching** — Every call hits the network; cache at application level for performance

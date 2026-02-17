@@ -9,7 +9,9 @@ Pure Clojure client for Yahoo Finance. No Python, no API key required.
 ✅ **Dividends & splits** - Corporate action history  
 ✅ **Ticker info** - Basic company metadata (name, exchange, price ranges)
 
-❌ **Not included:** Financial statements, options data, comprehensive fundamentals (P/E, market cap, EPS, sector, industry) - these require Yahoo's authenticated endpoints which are currently blocked. For these features, use [AlphaVantage](https://www.alphavantage.co/), [Financial Modeling Prep](https://financialmodelingprep.com/), or [Polygon.io](https://polygon.io/).
+⚠️ **Experimental:** Company fundamentals (P/E, market cap, EPS, margins, analyst targets) - uses Yahoo's authenticated endpoints which may break. See [Experimental Features](#experimental-features-fundamentals) below.
+
+❌ **Not included:** Financial statements, options data, comprehensive analyst estimates - not available without authentication that Yahoo actively blocks.
 
 ## Installation
 
@@ -201,6 +203,102 @@ Convert timestamps to dates as needed:
   (java.time.ZoneId/of "America/New_York"))
 ```
 
+## Experimental Features: Fundamentals
+
+> ⚠️ **EXPERIMENTAL** — This feature may break at any time. Yahoo can change or block authentication without notice. For production applications, use a stable alternative (see below).
+
+The `clj-yfinance.experimental.fundamentals` namespace provides access to company fundamentals via Yahoo's authenticated `quoteSummary` endpoint. Authentication is handled automatically using a cookie/crumb session (no API key required).
+
+### What's Available
+
+- **Valuation:** P/E ratio (trailing & forward), price-to-book, enterprise value, market cap
+- **Profitability:** Profit margins, operating margins, return on equity, return on assets
+- **Financial health:** Total revenue, EBITDA, debt-to-equity, total cash per share
+- **Analyst data:** Recommendation (buy/hold/sell), mean price target, number of analysts
+- **Key statistics:** Beta, 52-week change, shares outstanding, float shares, institutional holdings
+
+### Usage
+
+```clojure
+(require '[clj-yfinance.experimental.fundamentals :as yff])
+
+;; Simple API - returns data map or nil on failure
+(yff/fetch-fundamentals "AAPL")
+;; => {:marketCap {:raw 4034211348480 :fmt "4.03T"}
+;;     :currentPrice {:raw 255.78 :fmt "255.78"}
+;;     :recommendationKey "buy"
+;;     :trailingPE {:raw 32.4 :fmt "32.40"}
+;;     :forwardPE {:raw 28.1 :fmt "28.10"}
+;;     :profitMargins {:raw 0.2531 :fmt "25.31%"}
+;;     :targetMeanPrice {:raw 265.00 :fmt "265.00"}
+;;     ...}  ; 100+ fields total
+
+;; Verbose API - returns {:ok? true :data ...} or {:ok? false :error ...}
+(yff/fetch-fundamentals* "AAPL")
+;; => {:ok? true
+;;     :data {:marketCap {...} :currentPrice {...} ...}}
+
+;; Error handling
+(let [result (yff/fetch-fundamentals* "INVALID")]
+  (when-not (:ok? result)
+    (println "Error:" (-> result :error :type))
+    (println "Suggestion:" (-> result :error :suggestion))))
+;; => Error: :http-error
+;; => Suggestion: Verify the ticker symbol is correct...
+
+;; Access specific fields
+(let [data (yff/fetch-fundamentals "MSFT")]
+  {:pe-ratio     (-> data :trailingPE :raw)
+   :market-cap   (-> data :marketCap :fmt)
+   :rating       (:recommendationKey data)
+   :target-price (-> data :targetMeanPrice :raw)})
+;; => {:pe-ratio 32.4, :market-cap "3.21T", :rating "buy", :target-price 510.00}
+```
+
+### Note on Data Format
+
+Yahoo returns numeric values as `{:raw <number> :fmt <string>}` maps. Use `:raw` for calculations and `:fmt` for display. Some fields (like `:recommendationKey`) are plain strings.
+
+### Session Management
+
+Authentication is handled automatically:
+- Sessions are initialized on first use (cookie + crumb from Yahoo)
+- Sessions auto-refresh after 1 hour
+- On 401 errors, the session refreshes once and retries automatically
+- A singleton session is reused across all requests (no repeated auth)
+
+```clojure
+;; Check session status (for debugging)
+(require '[clj-yfinance.experimental.auth :as auth])
+(auth/session-info)
+;; => {:status :active, :age-minutes 12.3, :crumb-present? true}
+
+;; Force a session refresh if needed
+(auth/force-refresh!)
+```
+
+### Error Types
+
+| Error | Cause | Suggestion |
+|-------|-------|------------|
+| `:auth-failed` | Cookie/crumb refresh failed | Wait and retry; Yahoo may be blocking |
+| `:session-failed` | Session could not initialize | Check network; try again later |
+| `:api-error` | Yahoo returned error (e.g., bad ticker) | Verify ticker is valid |
+| `:http-error` | Non-200 status (404, etc.) | Check ticker; some may lack fundamentals |
+| `:rate-limited` | HTTP 429 - too many requests | Wait several minutes before retrying |
+| `:parse-error` | JSON parsing failed | Yahoo may have changed response format |
+| `:missing-data` | No result in response | Ticker may not have fundamentals available |
+| `:request-failed` | Network/connection error | Check network connectivity |
+
+### Stable Alternatives
+
+If you need production-grade fundamentals data:
+- [AlphaVantage](https://www.alphavantage.co/) — Free tier, good fundamentals API
+- [Financial Modeling Prep](https://financialmodelingprep.com/) — Comprehensive financials and screening
+- [Polygon.io](https://polygon.io/) — Professional-grade market data
+
+---
+
 ## API Reference
 
 **Dual API Design:**
@@ -318,6 +416,9 @@ Includes:
 # Core library tests (no network calls)
 clojure -M:test -e "(require 'clj-yfinance.core-test) (clj-yfinance.core-test/run-tests)"
 
+# Experimental auth tests (no network calls)
+clojure -M:test -e "(require 'clj-yfinance.experimental.auth-test) (clj-yfinance.experimental.auth-test/run-tests)"
+
 # Dataset tests (requires tech.ml.dataset)
 clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.dataset-test/run-tests)"
 
@@ -329,7 +430,8 @@ All tests are pure functions with no network calls - they test URL encoding, que
 
 ## Limitations
 
-- **No authentication-required endpoints**: Financial statements, options data, and comprehensive fundamentals are not available (Yahoo blocks automated access)
+- **Experimental fundamentals**: Cookie/crumb auth works but may break when Yahoo changes authentication — use with caution in production
+- **No authentication-required endpoints**: Financial statements, options data, and comprehensive analyst estimates are not available (Yahoo blocks automated access)
 - **No built-in rate limiting**: Yahoo may throttle aggressive use
 - **No caching**: Add your own with `core.cache` if needed
 - **Unofficial API**: Yahoo could change it, though the chart endpoint (v8) has been stable for years
