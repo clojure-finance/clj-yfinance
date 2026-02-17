@@ -9,9 +9,11 @@ Pure Clojure client for Yahoo Finance. No Python, no API key required.
 ✅ **Dividends & splits** - Corporate action history  
 ✅ **Ticker info** - Basic company metadata (name, exchange, price ranges)
 
-⚠️ **Experimental:** Company fundamentals (P/E, market cap, EPS, margins, analyst targets) - uses Yahoo's authenticated endpoints which may break. See [Experimental Features](#experimental-features-fundamentals) below.
+⚠️ **Experimental:** Company fundamentals (P/E, market cap, EPS, margins, analyst targets) - uses Yahoo's authenticated endpoints which may break. See [Experimental Features — Fundamentals](#experimental-features--fundamentals) below.
 
-❌ **Not yet expanded:** Financial statements, options chains, detailed analyst estimates - same cookie/crumb auth used for fundamentals should support these, but not yet implemented in the experimental namespace.
+⚠️ **Experimental:** Options chains (calls/puts, strikes, expiration dates, IV, OI) - uses same authenticated endpoint. See [Experimental Features — Options](#experimental-features--options) below.
+
+❌ **Not yet expanded:** Financial statements, detailed analyst estimates - same cookie/crumb auth should support these, but not yet implemented.
 
 ## Installation
 
@@ -203,42 +205,80 @@ Convert timestamps to dates as needed:
   (java.time.ZoneId/of "America/New_York"))
 ```
 
-## Experimental Features: Fundamentals
+## Experimental Features — Fundamentals
 
-> ⚠️ **EXPERIMENTAL** — This feature may break at any time. Yahoo can change or block authentication without notice. For production applications, use a stable alternative (see below).
+> ⚠️ **EXPERIMENTAL** — These features may break at any time. Yahoo can change or block authentication without notice. For production applications, use a stable alternative (see below).
 
-The `clj-yfinance.experimental.fundamentals` namespace provides access to company fundamentals via Yahoo's authenticated `quoteSummary` endpoint. Authentication is handled automatically using a cookie/crumb session (no API key required).
+The `clj-yfinance.experimental.fundamentals` namespace provides access to company data via Yahoo's authenticated `quoteSummary` endpoint. Authentication is handled automatically using a cookie/crumb session (no API key required).
 
-### What's Available
+All functions follow the same dual API pattern as the rest of the library:
+- **Simple API** — returns data directly or `nil` on failure
+- **Verbose API** (with `*` suffix) — returns `{:ok? true :data ...}` or `{:ok? false :error {...}}`
 
-- **Valuation:** P/E ratio (trailing & forward), price-to-book, enterprise value, market cap
-- **Profitability:** Profit margins, operating margins, return on equity, return on assets
-- **Financial health:** Total revenue, EBITDA, debt-to-equity, total cash per share
-- **Analyst data:** Recommendation (buy/hold/sell), mean price target, number of analysts
-- **Key statistics:** Beta, 52-week change, shares outstanding, float shares, institutional holdings
+### Available Functions
+
+| Function | Data returned |
+|----------|--------------|
+| `fetch-fundamentals` / `*` | P/E ratios, market cap, margins, revenue, analyst targets |
+| `fetch-company-info` / `*` | Sector, industry, description, employees, officers |
+| `fetch-analyst` / `*` | EPS/revenue estimates, buy/hold/sell trend, earnings surprises |
+| `fetch-financials` / `*` | Income statement, balance sheet, cash flow (annual or quarterly) |
+| `fetch-quotesummary*` | Raw access to any `quoteSummary` module combination |
 
 ### Usage
 
 ```clojure
 (require '[clj-yfinance.experimental.fundamentals :as yff])
 
-;; Simple API - returns data map or nil on failure
+;; --- Fundamentals (P/E, market cap, margins, analyst targets) ---
 (yff/fetch-fundamentals "AAPL")
-;; => {:marketCap {:raw 4034211348480 :fmt "4.03T"}
-;;     :currentPrice {:raw 255.78 :fmt "255.78"}
-;;     :recommendationKey "buy"
-;;     :trailingPE {:raw 32.4 :fmt "32.40"}
-;;     :forwardPE {:raw 28.1 :fmt "28.10"}
-;;     :profitMargins {:raw 0.2531 :fmt "25.31%"}
-;;     :targetMeanPrice {:raw 265.00 :fmt "265.00"}
-;;     ...}  ; 100+ fields total
+;; => {:financialData    {:currentPrice {:raw 255.78 :fmt "255.78"}
+;;                        :recommendationKey "buy"
+;;                        :profitMargins {:raw 0.27 :fmt "27.04%"}
+;;                        :targetMeanPrice {:raw 292.15 :fmt "292.15"} ...}
+;;     :defaultKeyStatistics {:beta {:raw 1.107 :fmt "1.11"}
+;;                            :forwardPE {:raw 27.54 :fmt "27.54"} ...}}
 
-;; Verbose API - returns {:ok? true :data ...} or {:ok? false :error ...}
-(yff/fetch-fundamentals* "AAPL")
-;; => {:ok? true
-;;     :data {:marketCap {...} :currentPrice {...} ...}}
+;; --- Company profile (sector, industry, description, officers) ---
+(yff/fetch-company-info "AAPL")
+;; => {:sector "Technology"
+;;     :industry "Consumer Electronics"
+;;     :fullTimeEmployees 150000
+;;     :longBusinessSummary "Apple Inc. designs, manufactures..."
+;;     :companyOfficers [{:name "Mr. Timothy D. Cook"
+;;                        :title "CEO & Director"
+;;                        :totalPay {:raw 16759518 :fmt "16.76M"}} ...]
+;;     :country "United States" :website "https://www.apple.com" ...}
 
-;; Error handling
+;; --- Analyst estimates & recommendations ---
+(yff/fetch-analyst "AAPL")
+;; => {:earningsTrend    {:trend [{:period "0q"
+;;                                 :earningsEstimate {:avg {:raw 1.95 :fmt "1.95"} ...}
+;;                                 :revenueEstimate  {:avg {:raw 109078529710 ...} ...}
+;;                                 :epsTrend {:current {:raw 1.95} :30daysAgo {:raw 1.85} ...}
+;;                                 :epsRevisions {:upLast30days {:raw 24} ...}} ...]}
+;;     :recommendationTrend {:trend [{:period "0m"
+;;                                    :strongBuy 5 :buy 23 :hold 16 :sell 1} ...]}
+;;     :earningsHistory  {:history [{:epsActual {:raw 1.65 :fmt "1.65"}
+;;                                   :epsEstimate {:raw 1.62 :fmt "1.62"}
+;;                                   :surprisePercent {:raw 0.0169 :fmt "1.69%"}} ...]}}
+
+;; --- Financial statements (annual by default) ---
+(yff/fetch-financials "MSFT")
+;; => {:incomeStatementHistory
+;;     {:incomeStatementHistory
+;;      [{:endDate {:raw 1751241600 :fmt "2025-06-30"}
+;;        :totalRevenue {:raw 281724000000 :fmt "281.72B"}
+;;        :netIncome    {:raw 101832000000 :fmt "101.83B"} ...} ...]}}
+;;    ;; Note: Yahoo partially restricts balance sheet and cash flow fields
+
+;; Quarterly financial statements
+(yff/fetch-financials "AAPL" :period :quarterly)
+;; => {:incomeStatementHistoryQuarterly {...}
+;;     :balanceSheetHistoryQuarterly {...}
+;;     :cashflowStatementHistoryQuarterly {...}}
+
+;; --- Verbose API for error handling ---
 (let [result (yff/fetch-fundamentals* "INVALID")]
   (when-not (:ok? result)
     (println "Error:" (-> result :error :type))
@@ -246,18 +286,18 @@ The `clj-yfinance.experimental.fundamentals` namespace provides access to compan
 ;; => Error: :http-error
 ;; => Suggestion: Verify the ticker symbol is correct...
 
-;; Access specific fields
-(let [data (yff/fetch-fundamentals "MSFT")]
-  {:pe-ratio     (-> data :trailingPE :raw)
-   :market-cap   (-> data :marketCap :fmt)
-   :rating       (:recommendationKey data)
-   :target-price (-> data :targetMeanPrice :raw)})
-;; => {:pe-ratio 32.4, :market-cap "3.21T", :rating "buy", :target-price 510.00}
+;; --- Raw access to any quoteSummary module ---
+(yff/fetch-quotesummary* "AAPL" "assetProfile,earningsTrend")
+;; => {:ok? true :data {:assetProfile {...} :earningsTrend {...}}}
 ```
 
 ### Note on Data Format
 
 Yahoo returns numeric values as `{:raw <number> :fmt <string>}` maps. Use `:raw` for calculations and `:fmt` for display. Some fields (like `:recommendationKey`) are plain strings.
+
+### Note on Financial Statements
+
+Yahoo partially restricts balance sheet and cash flow statement fields - only `:totalRevenue`, `:netIncome`, and `:endDate` are reliably available. For comprehensive financial statements, use Financial Modeling Prep or AlphaVantage.
 
 ### Session Management
 
@@ -284,20 +324,101 @@ Authentication is handled automatically:
 | `:auth-failed` | Cookie/crumb refresh failed | Wait and retry; Yahoo may be blocking |
 | `:session-failed` | Session could not initialize | Check network; try again later |
 | `:api-error` | Yahoo returned error (e.g., bad ticker) | Verify ticker is valid |
-| `:http-error` | Non-200 status (404, etc.) | Check ticker; some may lack fundamentals |
+| `:http-error` | Non-200 status (404, etc.) | Check ticker; some may lack data |
 | `:rate-limited` | HTTP 429 - too many requests | Wait several minutes before retrying |
 | `:parse-error` | JSON parsing failed | Yahoo may have changed response format |
-| `:missing-data` | No result in response | Ticker may not have fundamentals available |
+| `:missing-data` | No result in response | Ticker may not have this data available |
 | `:request-failed` | Network/connection error | Check network connectivity |
+| `:invalid-opts` | Invalid options (e.g. bad `:period`) | Check allowed values in docstring |
 
 ### Stable Alternatives
 
-If you need production-grade fundamentals data:
-- [AlphaVantage](https://www.alphavantage.co/) — Free tier, good fundamentals API
-- [Financial Modeling Prep](https://financialmodelingprep.com/) — Comprehensive financials and screening
-- [Polygon.io](https://polygon.io/) — Professional-grade market data
+If you need production-grade data:
+- [AlphaVantage](https://www.alphavantage.co/) - Free tier, good fundamentals API
+- [Financial Modeling Prep](https://financialmodelingprep.com/) - Comprehensive financials and screening
+- [Polygon.io](https://polygon.io/) - Professional-grade market data
 
 ---
+
+## Experimental Features — Options
+
+> ⚠️ **EXPERIMENTAL** — These features may break at any time. Yahoo can change or block authentication without notice.
+
+The `clj-yfinance.experimental.options` namespace provides access to options chains via Yahoo's authenticated v7 options endpoint. Authentication is shared with the fundamentals namespace (cookie/crumb session, no API key required).
+
+### Usage
+
+```clojure
+(require '[clj-yfinance.experimental.options :as yfo])
+
+;; Nearest expiry + list of all available expiration dates
+(yfo/fetch-options "AAPL")
+;; => {:underlying-symbol "AAPL"
+;;     :expiration-dates [1771372800 1771977600 ...]   ; all available dates (epoch seconds)
+;;     :strikes [195.0 200.0 210.0 ... 335.0]
+;;     :expiration-date 1771372800                     ; epoch seconds of returned chain
+;;     :quote {:regularMarketPrice 255.78 ...}
+;;     :calls [{:contractSymbol "AAPL260218C00210000"
+;;              :strike 210.0
+;;              :bid 44.6 :ask 47.6 :lastPrice 46.1
+;;              :impliedVolatility 1.447
+;;              :openInterest 100 :volume 50
+;;              :inTheMoney true
+;;              :expiration 1771372800
+;;              :lastTradeDate 1771200000
+;;              :percentChange 0.5 :change 0.25} ...]
+;;     :puts [{:contractSymbol "AAPL260218P00210000"
+;;             :strike 210.0 :inTheMoney false ...} ...]}
+
+;; Specific expiry (use an epoch seconds value from :expiration-dates)
+(yfo/fetch-options "AAPL" :expiration 1771977600)
+;; => {:calls [...] :puts [...] :expiration-date 1771977600 ...}
+
+;; Verbose API for error handling
+(let [result (yfo/fetch-options* "AAPL")]
+  (if (:ok? result)
+    (:data result)
+    (println "Error:" (-> result :error :type)
+             "Suggestion:" (-> result :error :suggestion))))
+
+;; Ticker with no options (e.g. non-listed instrument)
+(yfo/fetch-options* "INVALID")
+;; => {:ok? false :error {:type :http-error :status 404
+;;                        :ticker "INVALID"
+;;                        :suggestion "Verify the ticker is correct and has listed options."}}
+```
+
+### Data Format
+
+Each contract in `:calls` / `:puts` includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `:contractSymbol` | string | OCC symbol e.g. `"AAPL260218C00210000"` |
+| `:strike` | number | Strike price |
+| `:bid` / `:ask` | number | Current bid/ask |
+| `:lastPrice` | number | Last traded price |
+| `:impliedVolatility` | number | IV (e.g. `0.35` = 35%) |
+| `:openInterest` | integer | Open interest |
+| `:volume` | integer | Volume |
+| `:inTheMoney` | boolean | Whether contract is ITM |
+| `:expiration` | integer | Contract expiry (epoch seconds) |
+| `:lastTradeDate` | integer | Last trade timestamp (epoch seconds) |
+| `:percentChange` / `:change` | number | Price change fields |
+
+### Error Types
+
+| Error | Cause | Suggestion |
+|-------|-------|------------|
+| `:auth-failed` | Cookie/crumb refresh failed | Wait and retry; Yahoo may be blocking |
+| `:session-failed` | Session could not initialize | Check network; try again later |
+| `:api-error` | Yahoo returned error in response body | Verify ticker is valid |
+| `:http-error` | Non-200 status (404, etc.) | Check ticker; some instruments have no options |
+| `:rate-limited` | HTTP 429 - too many requests | Wait several minutes before retrying |
+| `:parse-error` | JSON parsing failed | Yahoo may have changed response format |
+| `:missing-data` | No result in response | Ticker may not have options available |
+| `:request-failed` | Network/connection error | Check network connectivity |
+| `:exception` | Unexpected error | See `:message` for details |
 
 ## API Reference
 
@@ -391,7 +512,7 @@ Includes:
 - Exchange info: `:currency`, `:exchange-name`, `:full-exchange-name`, `:timezone`, `:gmt-offset`
 - Additional: `:instrument-type`, `:first-trade-date`, `:has-pre-post-market-data`
 
-**Note:** This returns basic metadata from the chart endpoint. For fundamentals (P/E ratio, market cap, EPS, margins, analyst targets), see the experimental `clj-yfinance.experimental.fundamentals` namespace. Financial statements, options, and detailed analyst estimates use the same authentication mechanism and could be added to the experimental namespace in the future.
+**Note:** This returns basic metadata from the chart endpoint. For fundamentals (P/E ratio, market cap, EPS, margins, analyst targets), see `clj-yfinance.experimental.fundamentals`. For options chains, see `clj-yfinance.experimental.options`. Financial statements remain unavailable.
 
 ## Features
 
@@ -419,6 +540,12 @@ clojure -M:test -e "(require 'clj-yfinance.core-test) (clj-yfinance.core-test/ru
 # Experimental auth tests (no network calls)
 clojure -M:test -e "(require 'clj-yfinance.experimental.auth-test) (clj-yfinance.experimental.auth-test/run-tests)"
 
+# Experimental fundamentals tests (no network calls)
+clojure -M:test -e "(require 'clj-yfinance.experimental.fundamentals-test) (clj-yfinance.experimental.fundamentals-test/run-tests)"
+
+# Experimental options tests (no network calls)
+clojure -M:test -e "(require 'clj-yfinance.experimental.options-test) (clj-yfinance.experimental.options-test/run-tests)"
+
 # Dataset tests (requires tech.ml.dataset)
 clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.dataset-test/run-tests)"
 
@@ -431,14 +558,15 @@ All tests are pure functions with no network calls - they test URL encoding, que
 ## Limitations
 
 - **Experimental fundamentals**: Cookie/crumb auth works but may break when Yahoo changes authentication — use with caution in production
-- **Experimental namespace not yet expanded**: Financial statements, options chains, and detailed analyst estimates are not yet implemented - the same cookie/crumb auth used for fundamentals should support these in future
+- **Experimental options**: Same cookie/crumb auth, same caveats — options chains may break without notice
+- **Experimental namespace not yet expanded**: Financial statements and detailed analyst estimates are not yet implemented
 - **No built-in rate limiting**: Yahoo may throttle aggressive use
 - **No caching**: Add your own with `core.cache` if needed
 - **Unofficial API**: Yahoo could change it, though the chart endpoint (v8) has been stable for years
 
 ## Alternatives for Missing Features
 
-For financial statements, options, comprehensive fundamentals:
+For financial statements and detailed analyst estimates:
 - [AlphaVantage](https://www.alphavantage.co/) - Free tier available, good fundamentals API
 - [Financial Modeling Prep](https://financialmodelingprep.com/) - Comprehensive financials, screening
 - [Polygon.io](https://polygon.io/) - Professional-grade market data

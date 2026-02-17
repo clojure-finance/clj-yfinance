@@ -108,11 +108,11 @@
       (is (= :parse-error (-> result :error :type)))
       (is (string? (-> result :error :message)))))
 
-  (testing "parse-chart-body with empty result"
+  (testing "parse-chart-body with empty result returns :no-data error"
     (let [json "{\"chart\":{\"result\":[]}}"
           result (#'parse/parse-chart-body json)]
-      (is (:ok? result))
-      (is (nil? (:data result))))))
+      (is (false? (:ok? result)))
+      (is (= :no-data (-> result :error :type))))))
 
 (deftest test-ok-err-constructors
   (testing "ok creates success result"

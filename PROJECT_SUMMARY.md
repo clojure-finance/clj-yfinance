@@ -6,7 +6,8 @@ A pure Clojure library for fetching financial data from Yahoo Finance. Provides 
 
 **What works:** Price data, historical charts, dividends, splits, basic metadata  
 **Experimental:** Company fundamentals (P/E, market cap, margins, analyst data) via cookie/crumb auth — works but may break  
-**Not yet expanded:** Financial statements, options chains, detailed analyst estimates - same auth mechanism, not yet implemented in experimental namespace
+**Experimental:** Options chains (calls/puts, strikes, expiration dates, IV, OI) via cookie/crumb auth — works but may break  
+**Not yet expanded:** Financial statements, detailed analyst estimates - same auth mechanism, not yet implemented
 
 **Target use case:** Clojure-based financial applications needing reliable price and historical data without the complexity of authentication or external dependencies.
 
@@ -33,10 +34,13 @@ A pure Clojure library for fetching financial data from Yahoo Finance. Provides 
 | `src/clj_yfinance/parse.clj` | JSON parsing, URL encoding, data transformation utilities |
 | `src/clj_yfinance/validation.clj` | Input validation and range checking |
 | `src/clj_yfinance/experimental/auth.clj` | ⚠️ Experimental: Cookie/crumb session management for Yahoo auth |
-| `src/clj_yfinance/experimental/fundamentals.clj` | ⚠️ Experimental: Fundamentals via quoteSummary (P/E, margins, analyst data) |
+| `src/clj_yfinance/experimental/fundamentals.clj` | Experimental: `fetch-fundamentals`, `fetch-company-info`, `fetch-analyst`, `fetch-financials`, `fetch-quotesummary*` |
+| `src/clj_yfinance/experimental/options.clj` | Experimental: `fetch-options`, `fetch-options*` — options chains via v7 endpoint |
 | `test/clj_yfinance/core_test.clj` | Unit tests for core functions (105 assertions, no network calls) |
 | `test/clj_yfinance/dataset_test.clj` | Unit tests for dataset conversions (requires tech.ml.dataset) |
 | `test/clj_yfinance/experimental/auth_test.clj` | Unit tests for auth session logic (14 assertions, no network calls) |
+| `test/clj_yfinance/experimental/fundamentals_test.clj` | Unit tests for fundamentals parsing and validation (6 tests, 61 assertions, no network calls) |
+| `test/clj_yfinance/experimental/options_test.clj` | Unit tests for options parsing (4 tests, 66 assertions, no network calls) |
 | `deps.edn` | Deps.edn project file for Clojure CLI users |
 | `project.clj` | Leiningen project file for Leiningen users |
 | `README.md` | Library documentation with usage examples |
@@ -332,12 +336,14 @@ All functions in the `clj-yfinance.dataset` namespace. Requires adding `techasce
 - All errors handled gracefully with per-ticker structured error responses (no batch failures)
 
 **Code Organization:**
-- **5 namespace split** for separation of concerns:
+- **7 namespace split** for separation of concerns:
   - `clj-yfinance.core` - Public API (simple + verbose functions)
   - `clj-yfinance.dataset` - Optional dataset integration (requires tech.ml.dataset)
   - `clj-yfinance.http` - HTTP layer with retry and timeout logic
   - `clj-yfinance.parse` - Pure parsing and transformation functions
   - `clj-yfinance.validation` - Input validation (strict) and warnings (permissive)
+  - `clj-yfinance.experimental.fundamentals` - Experimental quoteSummary API (auth required)
+  - `clj-yfinance.experimental.options` - Experimental options chains via v7 endpoint
 
 ---
 
@@ -358,6 +364,15 @@ The library includes unit tests for all pure functions:
 ```bash
 # Core library tests (no network calls)
 clojure -M:test -e "(require 'clj-yfinance.core-test) (clj-yfinance.core-test/run-tests)"
+
+# Experimental auth tests (no network calls)
+clojure -M:test -e "(require 'clj-yfinance.experimental.auth-test) (clj-yfinance.experimental.auth-test/run-tests)"
+
+# Experimental fundamentals tests (no network calls)
+clojure -M:test -e "(require 'clj-yfinance.experimental.fundamentals-test) (clj-yfinance.experimental.fundamentals-test/run-tests)"
+
+# Experimental options tests (no network calls)
+clojure -M:test -e "(require 'clj-yfinance.experimental.options-test) (clj-yfinance.experimental.options-test/run-tests)"
 
 # Dataset tests (requires tech.ml.dataset)
 clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.dataset-test/run-tests)"
@@ -462,10 +477,9 @@ The library includes several pure functions that can be tested with fixtures:
 
 ### Authentication-Required Features
 
-The following features require Yahoo's quoteSummary API. **Basic fundamentals now work experimentally** via cookie/crumb auth (see `clj-yfinance.experimental.fundamentals`). The items below are **not yet implemented** in the experimental namespace - but the same cookie/crumb authentication mechanism should support them and they are candidates for future expansion:
+The following features require Yahoo's quoteSummary API. **Basic fundamentals now work experimentally** via cookie/crumb auth (see `clj-yfinance.experimental.fundamentals`). **Options chains also work experimentally** via a separate v7 endpoint (see `clj-yfinance.experimental.options`). The items below are **not yet implemented** in the experimental namespace:
 
 - **Financial statements** (income, balance sheet, cash flow - annual/quarterly)
-- **Options data** (chains, strikes, Greeks)
 - **Company details** (sector, industry, description, employees)
 - **Insider/institutional holdings** (detailed breakdown)
 
@@ -473,6 +487,7 @@ The following features require Yahoo's quoteSummary API. **Basic fundamentals no
 - **Key fundamentals** (P/E ratio, market cap, EPS, ROE, profit margins) ✅
 - **Analyst data** (recommendations, price targets, number of analysts) ✅
 - **Key statistics** (beta, enterprise value, shares outstanding, short interest) ✅
+- **Options chains** (calls/puts, strikes, expiration dates, IV, OI) ✅
 
 **Why experimental (not stable):**
 - Yahoo requires cookie/crumb authentication obtained from `fc.yahoo.com`
@@ -600,12 +615,30 @@ Added `clj-yfinance.experimental` namespace with cookie/crumb authentication and
  :status         :active}   ; or :uninitialized, :failed
 ```
 
-**Fundamentals API** (`clj-yfinance.experimental.fundamentals`):
-- Fetches from `quoteSummary` endpoint with `financialData,defaultKeyStatistics` modules
-- Returns ALL fields from Yahoo (100+ fields, no filtering)
+**quoteSummary API** (`clj-yfinance.experimental.fundamentals`):
+- Shared foundation `fetch-quotesummary* [ticker modules]` accepts any module combination
+- All public functions are thin wrappers over this shared layer
+- Returns ALL fields from Yahoo (no filtering)
 - Numeric values as `{:raw <number> :fmt <string>}` maps
-- Dual API: `fetch-fundamentals` (simple) and `fetch-fundamentals*` (verbose)
+- Dual API for each function (simple + verbose with `*` suffix)
 - Verbose error messages with actionable `:suggestion` field
+
+**Public functions:**
+
+| Function | Modules used | Simple API returns |
+|---|---|---|
+| `fetch-fundamentals` / `*` | `financialData,defaultKeyStatistics` | Map with `:financialData` and `:defaultKeyStatistics` keys |
+| `fetch-company-info` / `*` | `assetProfile` | `:assetProfile` map directly (sector, industry, employees, officers) |
+| `fetch-analyst` / `*` | `earningsTrend,recommendationTrend,earningsHistory` | Map with all three module keys |
+| `fetch-financials` / `*` | income/balance/cashflow modules (annual or quarterly) | Map with statement keys |
+| `fetch-quotesummary*` | any (caller-specified) | `{:ok? true :data {...}}` |
+
+**`fetch-financials` options:**
+- `:period` - `:annual` (default) or `:quarterly`; invalid value returns `:invalid-opts` error immediately
+
+**Note on financial statements:** Yahoo partially restricts balance sheet and cash flow fields.
+Only `:totalRevenue`, `:netIncome`, and `:endDate` are reliably available in income/cashflow.
+Balance sheet returns only `:endDate`. Income statement is the most useful module.
 
 **Error types added:**
 - `:auth-failed` - Cookie/crumb refresh failed after retry
@@ -614,17 +647,35 @@ Added `clj-yfinance.experimental` namespace with cookie/crumb authentication and
 - `:missing-data` - No quoteSummary result in response
 - `:rate-limited` - HTTP 429
 - `:request-failed` - Network/connection error
+- `:invalid-opts` - Invalid options (e.g. bad `:period` value)
 
 ### Testing
 
-**Unit tests** (`test/clj_yfinance/experimental/auth_test.clj`): 5 tests, 14 assertions, no network calls. Tests cover session age calculation, expiration detection, singleton identity, and session info reporting.
+**auth unit tests** (`test/clj_yfinance/experimental/auth_test.clj`): 5 tests, 14 assertions, no network calls. Covers session age, expiration detection, singleton identity, session-info shape.
 
-**Known issue fixed:** The original `auth_test.clj` was missing `[clj-yfinance.experimental.auth]` in its `ns` `:require` form, causing a compile error when accessing private vars via `#'`. Fixed by adding the require; all tests pass.
+**fundamentals unit tests** (`test/clj_yfinance/experimental/fundamentals_test.clj`): 6 tests, 61 assertions, no network calls. Uses `reify` mock HTTP responses. Covers:
+- `err` helper construction and default suggestion
+- `parse-quotesummary-response` for all branches: success, api-error, null/empty result, parse-error, 401, 404, 429, 5xx
+- `financials-modules` annual/quarterly strings and invalid period exception
+- `fetch-financials*` invalid `:period` returns `:invalid-opts` (no network needed)
+- Module constant strings contain expected module names
+
+**options unit tests** (`test/clj_yfinance/experimental/options_test.clj`): 4 tests, 66 assertions, no network calls. Uses `reify` mock HTTP responses. Covers:
+- `err` helper construction, default suggestion, minimal args
+- `parse-options-response` success: all top-level keys, call/put contract fields
+- `parse-options-response` error branches: api-error, null/empty result, parse-error, 401, 404, 429, 5xx
+- Ticker propagation into all error responses
 
 **Run tests:**
 ```bash
 clojure -M:test -e "(require 'clj-yfinance.experimental.auth-test) (clj-yfinance.experimental.auth-test/run-tests)"
 # => Ran 5 tests containing 14 assertions. 0 failures, 0 errors.
+
+clojure -M:test -e "(require 'clj-yfinance.experimental.fundamentals-test) (clj-yfinance.experimental.fundamentals-test/run-tests)"
+# => Ran 6 tests containing 61 assertions. 0 failures, 0 errors.
+
+clojure -M:test -e "(require 'clj-yfinance.experimental.options-test) (clj-yfinance.experimental.options-test/run-tests)"
+# => Ran 4 tests containing 66 assertions. 0 failures, 0 errors.
 ```
 
 **Live API validation (February 2026) - verified on both warm and fresh REPL:**
@@ -665,7 +716,8 @@ com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}
 ## Limitations & Disclaimers
 
 - **Experimental fundamentals** — Cookie/crumb auth works but may break when Yahoo changes authentication; treat as best-effort
-- **No stable authenticated endpoints** — Financial statements, options, and detailed analyst estimates remain unavailable
+- **Experimental options** — Same cookie/crumb auth, same caveats; options chains may break without notice
+- **No stable authenticated endpoints** — Financial statements and detailed analyst estimates remain unavailable
 - **Unofficial API** — Yahoo Finance chart endpoint (v8) is not officially documented but has been stable for years
 - **No built-in rate limiting** — Aggressive use may trigger 429 responses; implement retry logic using `fetch-*` functions
 - **No caching** — Every call hits the network; cache at application level for performance
