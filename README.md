@@ -13,7 +13,7 @@ Pure Clojure client for Yahoo Finance. No Python, no API key required.
 
 ⚠️ **Experimental:** Options chains (calls/puts, strikes, expiration dates, IV, OI) - uses same authenticated endpoint. See [Experimental Features — Options](#experimental-features--options) below.
 
-❌ **Not yet expanded:** Financial statements, detailed analyst estimates - same cookie/crumb auth should support these, but not yet implemented.
+❌ **Not yet expanded:** Insider/institutional holdings, detailed options Greeks — same cookie/crumb auth should support these, but not yet implemented.
 
 ## Installation
 

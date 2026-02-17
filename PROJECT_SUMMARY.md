@@ -7,7 +7,7 @@ A pure Clojure library for fetching financial data from Yahoo Finance. Provides 
 **What works:** Price data, historical charts, dividends, splits, basic metadata  
 **Experimental:** Company fundamentals (P/E, market cap, margins, analyst data) via cookie/crumb auth — works but may break  
 **Experimental:** Options chains (calls/puts, strikes, expiration dates, IV, OI) via cookie/crumb auth — works but may break  
-**Not yet expanded:** Financial statements, detailed analyst estimates - same auth mechanism, not yet implemented
+**Not yet expanded:** Insider/institutional holdings, detailed options Greeks — same auth mechanism, not yet implemented
 
 **Target use case:** Clojure-based financial applications needing reliable price and historical data without the complexity of authentication or external dependencies.
 
@@ -479,9 +479,8 @@ The library includes several pure functions that can be tested with fixtures:
 
 The following features require Yahoo's quoteSummary API. **Basic fundamentals now work experimentally** via cookie/crumb auth (see `clj-yfinance.experimental.fundamentals`). **Options chains also work experimentally** via a separate v7 endpoint (see `clj-yfinance.experimental.options`). The items below are **not yet implemented** in the experimental namespace:
 
-- **Financial statements** (income, balance sheet, cash flow - annual/quarterly)
-- **Company details** (sector, industry, description, employees)
 - **Insider/institutional holdings** (detailed breakdown)
+- **Detailed options Greeks** (delta, gamma, theta, vega)
 
 **Features now available experimentally:**
 - **Key fundamentals** (P/E ratio, market cap, EPS, ROE, profit margins) ✅
@@ -717,7 +716,7 @@ com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}
 
 - **Experimental fundamentals** — Cookie/crumb auth works but may break when Yahoo changes authentication; treat as best-effort
 - **Experimental options** — Same cookie/crumb auth, same caveats; options chains may break without notice
-- **No stable authenticated endpoints** — Financial statements and detailed analyst estimates remain unavailable
+- **No stable authenticated endpoints** — Insider/institutional holdings and detailed options Greeks remain unavailable
 - **Unofficial API** — Yahoo Finance chart endpoint (v8) is not officially documented but has been stable for years
 - **No built-in rate limiting** — Aggressive use may trigger 429 responses; implement retry logic using `fetch-*` functions
 - **No caching** — Every call hits the network; cache at application level for performance
