@@ -342,14 +342,13 @@ clojure -M:nrepl          # connects on port 7888
 
 Not yet published to Clojars. Clone the repo and use as a local dependency for now.
 
+**GitHub repository:** https://github.com/clojure-finance/clj-yfinance
+
 **Planned coordinates:** `com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}`
 
-**GitHub repository:** https://github.com/clojure-finance/clj-yfinance (to be created)
-
 **To publish:**
-1. Create the GitHub repo at `clojure-finance/clj-yfinance`
-2. Generate `pom.xml` via `clojure -Spom`
-3. Deploy with `lein deploy clojars` or `clj -T:build deploy`
+1. Generate `pom.xml` via `clojure -Spom`
+2. Deploy with `lein deploy clojars` or `clj -T:build deploy`
 
 ---
 

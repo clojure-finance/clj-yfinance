@@ -12,7 +12,7 @@ The library has two tiers. The **stable core** covers prices, historical OHLCV, 
 git clone https://github.com/clojure-finance/clj-yfinance.git
 ```
 
-Once published, coordinates will be:
+When published, coordinates will be:
 
 ```clojure
 ;; deps.edn
