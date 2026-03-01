@@ -615,16 +615,6 @@ clojure -M:test:duckdb -e "(require 'clj-yfinance.duckdb-test) (clj-yfinance.duc
 clojure -M:nrepl   # starts nREPL on port 7888
 ```
 
-## Roadmap
-
-The following integrations are planned, in priority order. The core library stays lean — charred only, no heavy runtime deps.
-
-| Version | Library | What it adds |
-|---------|---------|--------------|
-| 0.1.x | [Noj](https://github.com/scicloj/noj) | Dev-deps + "Using with Noj" README section showing the full quant pipeline |
-
-**Design principle:** core always returns plain Clojure data. Dataset conversion stays in `clj-yfinance.dataset`. Kindly metadata stays in `clj-yfinance.kindly`. No magic `:as` options — explicit is better.
-
 ## Caveats & Alternatives
 
 The stable core (prices, historical data, dividends, info) uses Yahoo's public chart endpoint, which has been stable for years and requires no authentication. The experimental namespaces use Yahoo's authenticated endpoints, which work today but carry no guarantees.
