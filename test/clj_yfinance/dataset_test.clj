@@ -22,9 +22,9 @@
    "MSFT" 428.04})
 
 (def sample-dividends-splits
-  {:dividends {1699574400 {"amount" 0.24 "date" 1699574400}
-               1707235200 {"amount" 0.25 "date" 1707235200}}
-   :splits {1598832000 {"numerator" 4 "denominator" 1 "date" 1598832000}}})
+  {:dividends {1699574400 {:amount 0.24 :date 1699574400}
+               1707235200 {:amount 0.25 :date 1707235200}}
+   :splits {1598832000 {:numerator 4 :denominator 1 :date 1598832000}}})
 
 (def sample-info
   {:symbol "AAPL"
@@ -124,7 +124,7 @@
 
   (testing "Only dividends returns only dividends dataset"
     (let [result (yfd/dividends-splits->dataset
-                  {:dividends {1699574400 {"amount" 0.24}}
+                  {:dividends {1699574400 {:amount 0.24}}
                    :splits {}})]
       (is (contains? result :dividends))
       (is (not (contains? result :splits)))))
@@ -132,7 +132,7 @@
   (testing "Only splits returns only splits dataset"
     (let [result (yfd/dividends-splits->dataset
                   {:dividends {}
-                   :splits {1598832000 {"numerator" 4 "denominator" 1}}})]
+                   :splits {1598832000 {:numerator 4 :denominator 1}}})]
       (is (not (contains? result :dividends)))
       (is (contains? result :splits))))
 
