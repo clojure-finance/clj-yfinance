@@ -378,6 +378,17 @@ If you need production-grade data with stable APIs and SLAs:
 
 ---
 
+## Other Financial Data Providers
+
+For reference, other commercial providers worth knowing about (no affiliation or endorsement; pricing and features subject to change):
+
+- **[Finnhub](https://finnhub.io/)** — Free tier with generous limits; real-time REST/WebSocket for stocks, forex, crypto; 30+ years of fundamentals; global coverage and alternative data. Paid plans start at $3000/mo for all-in-one access.
+- **[EOD Historical Data](https://eodhd.com/)** — Free tier (20 calls/day); paid plans from $19.99/mo (EOD) to $99.99/mo (All-In-One). Historical/real-time/fundamentals for stocks, ETFs, bonds, forex; 30+ years; 60+ exchanges. Student discounts available.
+- **[Marketstack](https://marketstack.com/)** — Free tier (100 req/mo); paid plans from ~$9.99/mo. EOD/intraday/real-time for 500k+ tickers; 15+ years historical. Scalable overages at low rates.
+- **[Twelve Data](https://twelvedata.com/)** — Plans start around $79/mo (no detailed free tier). Unified APIs/WebSocket for stocks, forex, crypto, ETFs; 100k+ symbols; low latency with SLA guarantees.
+
+---
+
 ## License
 
 Eclipse Public License 2.0 — see LICENSE.
