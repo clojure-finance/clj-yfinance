@@ -368,20 +368,17 @@ The stable core uses Yahoo's public chart endpoint, which requires no authentica
 - **No built-in caching** — every call hits the network. Add `core.memoize` or similar at the application level.
 - **No built-in rate limiting** — aggressive parallel use triggers 429 errors. Use the `:concurrency` option and implement retry logic via the verbose API.
 - **Unofficial API** — Yahoo does not publicly document these endpoints. Check their Terms of Service before commercial use.
-- **Restricted financial statement fields** — Yahoo limits balance sheet and cash flow data. For complete financial statements use Financial Modeling Prep or Alpha Vantage.
-
-If you need production-grade data with stable APIs and SLAs:
-
-- [Alpha Vantage](https://www.alphavantage.co/) — free tier, solid fundamentals and time series
-- [Financial Modeling Prep](https://site.financialmodelingprep.com/) — comprehensive financials, statements, and screening
-- [Massive](https://massive.com/) (formerly Polygon.io) — professional-grade market data and options
+- **Restricted financial statement fields** — Yahoo limits balance sheet and cash flow data. For complete financial statements see the Data Providers section below.
 
 ---
 
 ## Other Financial Data Providers
 
-For reference, other commercial providers worth knowing about (no affiliation or endorsement; pricing and features subject to change):
+For reference, commercial providers worth knowing about (no affiliation or endorsement; pricing and features subject to change):
 
+- **[Alpha Vantage](https://www.alphavantage.co/)** — Free tier with solid fundamentals and time series; premium plans start around $49.99/mo. Developer-friendly API with good documentation.
+- **[Financial Modeling Prep](https://site.financialmodelingprep.com/)** — Free basic tier; premium pricing on request. 100+ endpoints for comprehensive financials, statements, and screening; 70k+ securities; 30+ years of data.
+- **[Massive](https://massive.com/)** (formerly Polygon.io) — Free basic tier; Starter at $29/mo. Professional-grade market data and options optimized for algorithmic trading; 20+ years historical.
 - **[Finnhub](https://finnhub.io/)** — Free tier with generous limits; real-time REST/WebSocket for stocks, forex, crypto; 30+ years of fundamentals; global coverage and alternative data. Paid plans start at $3000/mo for all-in-one access.
 - **[EOD Historical Data](https://eodhd.com/)** — Free tier (20 calls/day); paid plans from $19.99/mo (EOD) to $99.99/mo (All-In-One). Historical/real-time/fundamentals for stocks, ETFs, bonds, forex; 30+ years; 60+ exchanges. Student discounts available.
 - **[Marketstack](https://marketstack.com/)** — Free tier (100 req/mo); paid plans from ~$9.99/mo. EOD/intraday/real-time for 500k+ tickers; 15+ years historical. Scalable overages at low rates.
