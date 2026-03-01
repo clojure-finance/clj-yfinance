@@ -188,7 +188,7 @@ For datasets too large to fit in memory, [Clojask](https://github.com/clojure-fi
 For use with [Clay](https://github.com/scicloj/clay), [Portal](https://github.com/djblue/portal), and any other [Kindly](https://github.com/scicloj/kindly)-aware tool, add the `:kindly` alias and use the `clj-yfinance.kindly` namespace:
 
 ```clojure
-;; deps.edn alias
+;; deps.edn alias (already included in the project's deps.edn)
 {:aliases {:kindly {:extra-deps {org.scicloj/kindly {:mvn/version "4-beta23"}
                                  techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
 ```
@@ -201,6 +201,8 @@ For use with [Clay](https://github.com/scicloj/clay), [Portal](https://github.co
 (yfk/historical->dataset "AAPL" :period "1mo")
 (yfk/prices->dataset (yf/fetch-prices ["AAPL" "GOOGL" "MSFT"]))
 (yfk/multi-ticker->dataset ["AAPL" "GOOGL" "MSFT"] :period "1y")
+(yfk/dividends-splits->dataset "AAPL" :period "10y")
+;; => {:dividends <kind/dataset> :splits <kind/dataset>}
 (yfk/info->dataset "AAPL")
 ```
 
@@ -442,9 +444,6 @@ The following integrations are planned, in priority order. The core library stay
 
 | Version | Library | What it adds |
 |---------|---------|--------------|
-| 0.1.1 | [Kindly](https://github.com/scicloj/kindly) | ✅ New optional ns `clj-yfinance.kindly` — wraps dataset output with `kind/dataset` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
-| 0.1.1 | [Clay](https://github.com/scicloj/clay) | ✅ `examples/finance_demo.clj` notebook: fetch → tablecloth → tableplot viz → HTML export |
-| 0.1.2 | [charred](https://github.com/cnuernber/charred) | ✅ Internal replacement for Cheshire — faster zero-alloc JSON, no API change |
 | 0.1.3 | [tech.parquet](https://github.com/techascent/tech.parquet) | New optional ns `clj-yfinance.parquet` — `save-historical!`, `load-historical`, `save-multi-ticker!` |
 | 0.1.4 | [tmducken](https://github.com/techascent/tmducken) | New optional ns `clj-yfinance.duckdb` — load datasets into embedded DuckDB, run SQL on prices/fundamentals |
 | 0.1.x | [Noj](https://github.com/scicloj/noj) | Dev-deps + "Using with Noj" README section showing the full quant pipeline |
@@ -466,13 +465,13 @@ Specific limitations worth knowing:
 
 For reference, commercial providers worth knowing about (no affiliation or endorsement; pricing and features subject to change):
 
-- **[Alpha Vantage](https://www.alphavantage.co/)** — Free tier with solid fundamentals and time series; premium plans start around $49.99/mo. Developer-friendly API with good documentation.
-- **[Financial Modeling Prep](https://site.financialmodelingprep.com/)** — Free basic tier; premium pricing on request. 100+ endpoints for comprehensive financials, statements, and screening; 70k+ securities; 30+ years of data.
-- **[Massive](https://massive.com/)** (formerly Polygon.io) — Free basic tier; Starter at $29/mo. Professional-grade market data and options optimized for algorithmic trading; 20+ years historical.
-- **[Finnhub](https://finnhub.io/)** — Free tier with generous limits; real-time REST/WebSocket for stocks, forex, crypto; 30+ years of fundamentals; global coverage and alternative data. Paid plans start at $3000/mo for all-in-one access.
-- **[EOD Historical Data](https://eodhd.com/)** — Free tier (20 calls/day); paid plans from $19.99/mo (EOD) to $99.99/mo (All-In-One). Historical/real-time/fundamentals for stocks, ETFs, bonds, forex; 30+ years; 60+ exchanges. Student discounts available.
-- **[Marketstack](https://marketstack.com/)** — Free tier (100 req/mo); paid plans from ~$9.99/mo. EOD/intraday/real-time for 500k+ tickers; 15+ years historical. Scalable overages at low rates.
-- **[Twelve Data](https://twelvedata.com/)** — Plans start around $79/mo (no detailed free tier). Unified APIs/WebSocket for stocks, forex, crypto, ETFs; 100k+ symbols; low latency with SLA guarantees.
+- **[Alpha Vantage](https://www.alphavantage.co/)** — Free tier with solid fundamentals and time series; premium plans start around $49.99/mo.
+- **[Financial Modeling Prep](https://site.financialmodelingprep.com/)** — Free basic tier. 100+ endpoints for comprehensive financials, statements, and screening; 70k+ securities; 30+ years of data.
+- **[Massive](https://massive.com/)** (formerly Polygon.io) — Free basic tier; Starter at $29/mo. Professional-grade market data and options; 20+ years historical.
+- **[Finnhub](https://finnhub.io/)** — Free tier with generous limits; real-time REST/WebSocket for stocks, forex, crypto; global coverage and alternative data.
+- **[EOD Historical Data](https://eodhd.com/)** — Free tier (20 calls/day); paid plans from $19.99/mo. Historical/real-time/fundamentals for 60+ exchanges; student discounts available.
+- **[Marketstack](https://marketstack.com/)** — Free tier (100 req/mo); paid plans from ~$9.99/mo. EOD/intraday/real-time for 500k+ tickers; 15+ years historical.
+- **[Twelve Data](https://twelvedata.com/)** — Unified APIs/WebSocket for stocks, forex, crypto, ETFs; 100k+ symbols.
 
 ## License
 

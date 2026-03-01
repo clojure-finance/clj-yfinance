@@ -35,6 +35,7 @@ The library is organised into two tiers. The **stable core** covers current pric
 | `src/clj_yfinance/experimental/auth.clj` | Cookie/crumb session management for Yahoo authentication |
 | `src/clj_yfinance/experimental/fundamentals.clj` | `fetch-fundamentals`, `fetch-company-info`, `fetch-analyst`, `fetch-financials`, `fetch-quotesummary*` |
 | `src/clj_yfinance/experimental/options.clj` | `fetch-options`, `fetch-options*` — options chains via the v7 endpoint |
+| `examples/finance_demo.clj` | Clay notebook: fetch → tablecloth → tableplot viz → HTML export |
 | `test/clj_yfinance/core_test.clj` | Unit tests for core functions (105 assertions, no network calls) |
 | `test/clj_yfinance/dataset_test.clj` | Unit tests for dataset conversions (requires tech.ml.dataset) |
 | `test/clj_yfinance/experimental/auth_test.clj` | Unit tests for auth session logic (5 tests, 14 assertions) |
@@ -228,7 +229,7 @@ For datasets too large to fit in memory, [Clojask](https://github.com/clojure-fi
 The `clj-yfinance.kindly` namespace wraps every function in `clj-yfinance.dataset` and tags the output with `kind/dataset` metadata. This makes datasets auto-render as interactive tables in any [Kindly](https://github.com/scicloj/kindly)-aware tool: Clay notebooks, Portal, Clerk, etc.
 
 ```clojure
-;; Add to deps.edn
+;; Add to deps.edn (already included as the :kindly alias)
 {:aliases {:kindly {:extra-deps {org.scicloj/kindly {:mvn/version "4-beta23"}
                                  techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
 
@@ -247,7 +248,24 @@ The `clj-yfinance.kindly` namespace wraps every function in `clj-yfinance.datase
 
 All functions accept the same arguments as their `clj-yfinance.dataset` counterparts.
 
-**Note:** `dividends-splits->dataset` has a known pre-existing bug in the underlying `clj-yfinance.dataset` function (keyword timestamp keys). This will be addressed in a future release.
+---
+
+## Clay Demo Notebook (Optional)
+
+The `examples/finance_demo.clj` notebook demonstrates the full pipeline inside a [Clay](https://github.com/scicloj/clay) notebook.
+
+```clojure
+;; Start REPL with the :clay alias
+;; clojure -M:clay:nrepl
+
+;; Render the notebook
+(require '[scicloj.clay.v2.api :as clay])
+(clay/make! {:source-path "examples/finance_demo.clj"})
+```
+
+The notebook covers: current prices, historical OHLCV, log-returns, multi-ticker datasets, closing price chart, normalised performance chart, daily log-returns chart, 20-day rolling volatility (annualised), returns distribution, dividend history, and a ticker info comparison table.
+
+The `:clay` alias in `deps.edn` pulls in Clay, tablecloth, tableplot, and tech.ml.dataset.
 
 ---
 
@@ -379,14 +397,14 @@ clojure -M:nrepl          # connects on port 7888
 
 ## Publishing
 
-**Published on Clojars** as `com.github.clojure-finance/clj-yfinance 0.1.0`.
+**Published on Clojars** as `com.github.clojure-finance/clj-yfinance 0.1.2`.
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.2"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.0"]
+[com.github.clojure-finance/clj-yfinance "0.1.2"]
 ```
 
 **GitHub repository:** https://github.com/clojure-finance/clj-yfinance
@@ -422,10 +440,7 @@ The following integrations are planned, in priority order. All are strictly opti
 
 | Phase | Library | Integration level | What it adds |
 |---|---|---|---|
-| 0.1.1 | Kindly | New optional ns `clj-yfinance.kindly` | ✅ Wraps dataset ns output with `kind/dataset` / `kind/table` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
-| 0.1.1 | Clay | Examples only (`examples/finance_demo.clj`) | ✅ Notebook: fetch → tablecloth → tableplot viz (prices, normalised perf, log-returns, rolling vol, density) → HTML export |
-| 0.1.2 | charred | Internal (replaces Cheshire) | ✅ Faster zero-alloc JSON parsing; no API change |
-| 0.1.3 | tech.parquet | New optional ns `clj-yfinance.parquet` | `save-historical!`, `load-historical`, `save-multi-ticker!` — columnar archiving standard |
+| 0.1.3 | tech.parquet | New optional ns `clj-yfinance.parquet` | `save-historical!`, `save-multi-ticker!`, `load-historical` — columnar archiving standard |
 | 0.1.4 | tmducken | New optional ns `clj-yfinance.duckdb` | Load datasets into embedded DuckDB; run SQL on prices/fundamentals |
 | 0.1.x | Noj | Dev-deps + README section | "Using with Noj" full pipeline example |
 
@@ -448,13 +463,13 @@ The stable core uses Yahoo's public chart endpoint, which requires no authentica
 
 For reference, commercial providers worth knowing about (no affiliation or endorsement; pricing and features subject to change):
 
-- **[Alpha Vantage](https://www.alphavantage.co/)** — Free tier with solid fundamentals and time series; premium plans start around $49.99/mo. Developer-friendly API with good documentation.
-- **[Financial Modeling Prep](https://site.financialmodelingprep.com/)** — Free basic tier; premium pricing on request. 100+ endpoints for comprehensive financials, statements, and screening; 70k+ securities; 30+ years of data.
-- **[Massive](https://massive.com/)** (formerly Polygon.io) — Free basic tier; Starter at $29/mo. Professional-grade market data and options optimized for algorithmic trading; 20+ years historical.
-- **[Finnhub](https://finnhub.io/)** — Free tier with generous limits; real-time REST/WebSocket for stocks, forex, crypto; 30+ years of fundamentals; global coverage and alternative data. Paid plans start at $3000/mo for all-in-one access.
-- **[EOD Historical Data](https://eodhd.com/)** — Free tier (20 calls/day); paid plans from $19.99/mo (EOD) to $99.99/mo (All-In-One). Historical/real-time/fundamentals for stocks, ETFs, bonds, forex; 30+ years; 60+ exchanges. Student discounts available.
-- **[Marketstack](https://marketstack.com/)** — Free tier (100 req/mo); paid plans from ~$9.99/mo. EOD/intraday/real-time for 500k+ tickers; 15+ years historical. Scalable overages at low rates.
-- **[Twelve Data](https://twelvedata.com/)** — Plans start around $79/mo (no detailed free tier). Unified APIs/WebSocket for stocks, forex, crypto, ETFs; 100k+ symbols; low latency with SLA guarantees.
+- **[Alpha Vantage](https://www.alphavantage.co/)** — Free tier with solid fundamentals and time series; premium plans start around $49.99/mo.
+- **[Financial Modeling Prep](https://site.financialmodelingprep.com/)** — Free basic tier. 100+ endpoints for comprehensive financials, statements, and screening; 70k+ securities; 30+ years of data.
+- **[Massive](https://massive.com/)** (formerly Polygon.io) — Free basic tier; Starter at $29/mo. Professional-grade market data and options; 20+ years historical.
+- **[Finnhub](https://finnhub.io/)** — Free tier with generous limits; real-time REST/WebSocket for stocks, forex, crypto; global coverage and alternative data.
+- **[EOD Historical Data](https://eodhd.com/)** — Free tier (20 calls/day); paid plans from $19.99/mo. Historical/real-time/fundamentals for 60+ exchanges; student discounts available.
+- **[Marketstack](https://marketstack.com/)** — Free tier (100 req/mo); paid plans from ~$9.99/mo. EOD/intraday/real-time for 500k+ tickers; 15+ years historical.
+- **[Twelve Data](https://twelvedata.com/)** — Unified APIs/WebSocket for stocks, forex, crypto, ETFs; 100k+ symbols.
 
 ---
 

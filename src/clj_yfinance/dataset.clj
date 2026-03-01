@@ -144,14 +144,14 @@
      (let [{:keys [dividends splits]} data-or-ticker
            div-ds (when (seq dividends)
                     (ds/->dataset
-                     (map (fn [[ts m]] {:timestamp ts :amount (get m "amount")})
+                     (map (fn [[ts m]] {:timestamp ts :amount (:amount m)})
                           dividends)
                      {:parser-fn {:timestamp :int64 :amount :float64}}))
            split-ds (when (seq splits)
                       (ds/->dataset
                        (map (fn [[ts m]] {:timestamp ts
-                                          :numerator (get m "numerator")
-                                          :denominator (get m "denominator")})
+                                          :numerator (:numerator m)
+                                          :denominator (:denominator m)})
                             splits)
                        {:parser-fn {:timestamp :int64
                                     :numerator :int64
