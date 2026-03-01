@@ -8,10 +8,10 @@ The library has two tiers. The **stable core** covers prices, historical OHLCV, 
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.3"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.4"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.3"]
+[com.github.clojure-finance/clj-yfinance "0.1.4"]
 ```
 
 **Requires JDK 11+** (uses `java.net.http.HttpClient`). The only runtime dependency is [charred](https://github.com/cnuernber/charred) for JSON parsing.
@@ -301,6 +301,49 @@ For columnar archiving of financial datasets, add the `:parquet` alias and use t
 
 Start your REPL with `clojure -M:parquet:nrepl` to use this namespace.
 
+## DuckDB Integration
+
+For running SQL queries over financial datasets using an embedded [DuckDB](https://duckdb.org/) database, add the `:duckdb` alias and use the `clj-yfinance.duckdb` namespace:
+
+```clojure
+;; deps.edn alias (already included in the project's deps.edn)
+{:aliases {:duckdb {:extra-deps {com.techascent/tmducken {:mvn/version "0.10.1-01"}
+                                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
+```
+
+DuckDB also requires a native shared library (`libduckdb`). On most Linux distributions you can install it via your package manager (e.g. `apt install libduckdb-dev`). Alternatively, set the `DUCKDB_HOME` environment variable to the directory containing the library before starting your REPL. On macOS it is available via Homebrew (`brew install duckdb`).
+
+```clojure
+(require '[clj-yfinance.duckdb :as yf-db])
+
+;; Open an in-memory database
+(def db (yf-db/open-db))
+
+;; Open a persistent on-disk database
+(def db (yf-db/open-db "finance.db"))
+
+;; Load historical data for a single ticker (table named after the ticker)
+(yf-db/load-historical! db "AAPL" :period "1y")
+(yf-db/query db "SELECT * FROM AAPL ORDER BY timestamp DESC LIMIT 5")
+;; => #tech.v3.dataset [:timestamp :open :high :low :close :volume :adj-close]
+
+;; Load multiple tickers into a single "prices" table (includes :ticker column)
+(yf-db/load-multi-ticker! db ["AAPL" "GOOGL" "MSFT"] :period "1y")
+(yf-db/query db "SELECT ticker, AVG(close) AS avg_close FROM prices GROUP BY ticker ORDER BY avg_close DESC")
+;; => #tech.v3.dataset [:ticker :avg_close]
+
+;; Load any existing dataset into a named table
+(yf-db/load-dataset! db my-ds :table-name "enriched")
+
+;; Run DDL without returning a result
+(yf-db/run! db "DROP TABLE IF EXISTS prices")
+
+;; Close when done
+(yf-db/close! db)
+```
+
+Start your REPL with `clojure -M:duckdb:nrepl` to use this namespace.
+
 ## Experimental: Fundamentals & Company Data
 
 > ⚠️ **EXPERIMENTAL** — uses Yahoo's authenticated `quoteSummary` endpoint via a cookie/crumb session. Works reliably today but Yahoo can change or revoke this at any time without notice. Treat as best-effort, not production-grade.
@@ -465,6 +508,9 @@ clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.d
 
 # Parquet (requires tmd-parquet + tech.ml.dataset)
 clojure -M:test:parquet -e "(require 'clj-yfinance.parquet-test) (clj-yfinance.parquet-test/run-tests)"
+
+# DuckDB (requires tmducken + tech.ml.dataset + native libduckdb)
+clojure -M:test:duckdb -e "(require 'clj-yfinance.duckdb-test) (clj-yfinance.duckdb-test/run-tests)"
 ```
 
 ### REPL
@@ -479,7 +525,6 @@ The following integrations are planned, in priority order. The core library stay
 
 | Version | Library | What it adds |
 |---------|---------|--------------|
-| 0.1.4 | [tmducken](https://github.com/techascent/tmducken) | New optional ns `clj-yfinance.duckdb` — load datasets into embedded DuckDB, run SQL on prices/fundamentals |
 | 0.1.x | [Noj](https://github.com/scicloj/noj) | Dev-deps + "Using with Noj" README section showing the full quant pipeline |
 
 **Design principle:** core always returns plain Clojure data. Dataset conversion stays in `clj-yfinance.dataset`. Kindly metadata stays in `clj-yfinance.kindly`. No magic `:as` options — explicit is better.

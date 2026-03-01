@@ -33,12 +33,14 @@ The library is organised into two tiers. The **stable core** covers current pric
 | `src/clj_yfinance/parse.clj` | Pure JSON parsing, URL encoding, data transformation |
 | `src/clj_yfinance/validation.clj` | Input validation (strict) and interval/range warnings (permissive) |
 | `src/clj_yfinance/parquet.clj` | Optional Parquet save/load functions (requires tmd-parquet + tech.ml.dataset) |
+| `src/clj_yfinance/duckdb.clj` | Optional DuckDB integration — load datasets, run SQL (requires tmducken + tech.ml.dataset) |
 | `src/clj_yfinance/experimental/auth.clj` | Cookie/crumb session management for Yahoo authentication |
 | `src/clj_yfinance/experimental/fundamentals.clj` | `fetch-fundamentals`, `fetch-company-info`, `fetch-analyst`, `fetch-financials`, `fetch-quotesummary*` |
 | `src/clj_yfinance/experimental/options.clj` | `fetch-options`, `fetch-options*` — options chains via the v7 endpoint |
 | `examples/finance_demo.clj` | Clay notebook: fetch → tablecloth → tableplot viz → HTML export |
 | `test/clj_yfinance/core_test.clj` | Unit tests for core functions (105 assertions, no network calls) |
 | `test/clj_yfinance/parquet_test.clj` | Unit tests for Parquet save/load (4 tests, 15 assertions) |
+| `test/clj_yfinance/duckdb_test.clj` | Unit tests for DuckDB integration (6 tests, requires tmducken + libduckdb) |
 | `test/clj_yfinance/dataset_test.clj` | Unit tests for dataset conversions (requires tech.ml.dataset) |
 | `test/clj_yfinance/experimental/auth_test.clj` | Unit tests for auth session logic (5 tests, 14 assertions) |
 | `test/clj_yfinance/experimental/fundamentals_test.clj` | Unit tests for fundamentals parsing (6 tests, 61 assertions) |
@@ -293,6 +295,45 @@ Column names are keywordized on load. All functions return the dataset on succes
 
 ---
 
+## DuckDB Integration (Optional)
+
+The `clj-yfinance.duckdb` namespace loads datasets into an embedded [DuckDB](https://duckdb.org/) instance and lets you query them with SQL via [tmducken](https://github.com/techascent/tmducken).
+
+DuckDB requires a native shared library (`libduckdb`) in addition to the JVM dependency. Install it via your package manager (e.g. `apt install libduckdb-dev` on Debian/Ubuntu, `brew install duckdb` on macOS) or set `DUCKDB_HOME` to the directory containing the library before starting your REPL.
+
+```clojure
+;; Add to deps.edn (already included as the :duckdb alias)
+{:aliases {:duckdb {:extra-deps {com.techascent/tmducken {:mvn/version "0.10.1-01"}
+                                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
+
+(require '[clj-yfinance.duckdb :as yf-db])
+
+;; Open an in-memory database (pass a file path for persistent storage)
+(def db (yf-db/open-db))
+(def db (yf-db/open-db "finance.db"))
+
+;; Load a single ticker into a table named after the ticker
+(yf-db/load-historical! db "AAPL" :period "1y")
+(yf-db/query db "SELECT * FROM AAPL ORDER BY timestamp DESC LIMIT 5")
+
+;; Load multiple tickers into a single "prices" table (includes :ticker column)
+(yf-db/load-multi-ticker! db ["AAPL" "GOOGL" "MSFT"] :period "1y")
+(yf-db/query db "SELECT ticker, AVG(close) AS avg_close FROM prices GROUP BY ticker")
+
+;; Load any dataset into a named table
+(yf-db/load-dataset! db my-ds :table-name "enriched")
+
+;; Run DDL without returning a result
+(yf-db/run! db "DROP TABLE IF EXISTS prices")
+
+;; Close when done
+(yf-db/close! db)
+```
+
+All query results are returned as `tech.v3.dataset` values, compatible with the rest of the data science stack.
+
+---
+
 ## Experimental: Fundamentals & Company Data
 
 The `clj-yfinance.experimental.fundamentals` namespace wraps Yahoo's authenticated `quoteSummary` endpoint. Authentication is fully automatic: on first use the library fetches a session cookie from `fc.yahoo.com` and a crumb token from Yahoo's API, caches the session, and refreshes it after one hour. No setup or API key required.
@@ -372,7 +413,7 @@ Each contract map includes: `:contractSymbol` `:strike` `:bid` `:ask` `:lastPric
 
 ## Tests
 
-All tests are pure — no network calls. Parsing functions are tested with JSON fixtures; `reify` mocks stand in for HTTP responses in the experimental tests.
+All tests are pure — no network calls. Parsing functions are tested with JSON fixtures; `reify` mocks stand in for HTTP responses in the experimental tests. The DuckDB tests require the native `libduckdb` library.
 
 ```bash
 # Core (105 assertions)
@@ -392,9 +433,12 @@ clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.d
 
 # Parquet (requires tmd-parquet + tech.ml.dataset)
 clojure -M:test:parquet -e "(require 'clj-yfinance.parquet-test) (clj-yfinance.parquet-test/run-tests)"
+
+# DuckDB (requires tmducken + tech.ml.dataset + native libduckdb)
+clojure -M:test:duckdb -e "(require 'clj-yfinance.duckdb-test) (clj-yfinance.duckdb-test/run-tests)"
 ```
 
-Test coverage includes: URL encoding, query string building, epoch time conversion, interval/range validation, input validation (periods, intervals, start/end ordering), time parameter construction, JSON parsing for all success and error branches, result envelope constructors, retry logic (retryable vs non-retryable errors), key normalisation (camelCase → kebab-case), future timeout handling, and dataset column types.
+Test coverage includes: URL encoding, query string building, epoch time conversion, interval/range validation, input validation (periods, intervals, start/end ordering), time parameter construction, JSON parsing for all success and error branches, result envelope constructors, retry logic (retryable vs non-retryable errors), key normalisation (camelCase → kebab-case), future timeout handling, dataset column types, and DuckDB load/query/round-trip correctness.
 
 ---
 
@@ -424,14 +468,14 @@ clojure -M:nrepl          # connects on port 7888
 
 ## Publishing
 
-**Published on Clojars** as `com.github.clojure-finance/clj-yfinance 0.1.3`.
+**Published on Clojars** as `com.github.clojure-finance/clj-yfinance 0.1.4`.
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.3"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.4"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.3"]
+[com.github.clojure-finance/clj-yfinance "0.1.4"]
 ```
 
 **GitHub repository:** https://github.com/clojure-finance/clj-yfinance
@@ -467,7 +511,6 @@ The following integrations are planned, in priority order. All are strictly opti
 
 | Phase | Library | Integration level | What it adds |
 |---|---|---|---|
-| 0.1.4 | tmducken | New optional ns `clj-yfinance.duckdb` | Load datasets into embedded DuckDB; run SQL on prices/fundamentals |
 | 0.1.x | Noj | Dev-deps + README section | "Using with Noj" full pipeline example |
 
 **Design principle:** core always returns plain Clojure data (maps/vectors). Dataset conversion stays in `clj-yfinance.dataset`. Kindly metadata stays in `clj-yfinance.kindly`. No `:as` option on core functions — explicit is better than magic.

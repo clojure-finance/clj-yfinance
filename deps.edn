@@ -22,6 +22,10 @@
                 org.scicloj/tableplot {:mvn/version "1-beta14"}
                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}
 
+  :duckdb
+  {:extra-deps {com.techascent/tmducken {:mvn/version "0.10.1-01"}
+                techascent/tech.ml.dataset {:mvn/version "7.032"}}}
+
   :parquet
   {:extra-deps {com.techascent/tmd-parquet {:mvn/version "1.000-beta-39"}
                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}
