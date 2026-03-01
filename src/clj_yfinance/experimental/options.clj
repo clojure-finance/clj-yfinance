@@ -22,7 +22,7 @@
    - Session auto-refreshes every hour
    - MAX 1 retry on authentication failure"
   (:require [clj-yfinance.experimental.auth :as auth]
-            [cheshire.core :as json]))
+            [charred.api :as charred]))
 
 (def ^:private base-url "https://query1.finance.yahoo.com/v7/finance/options")
 
@@ -50,7 +50,7 @@
     (cond
       (= 200 status)
       (try
-        (let [data (json/parse-string body true)
+        (let [data (charred/read-json body {:key-fn keyword})
               result (-> data :optionChain :result first)
               error (-> data :optionChain :error)]
           (cond

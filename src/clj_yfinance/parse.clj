@@ -1,6 +1,6 @@
 (ns clj-yfinance.parse
   "JSON parsing and data transformation utilities."
-  (:require [cheshire.core :as json]
+  (:require [charred.api :as charred]
             [clojure.string :as str])
   (:import [java.net URLEncoder]
            [java.time Instant]))
@@ -41,7 +41,7 @@
   "Parse JSON response body into chart data or error. Pure function for testing."
   [json-string]
   (try
-    (let [body (json/parse-string json-string true)]
+    (let [body (charred/read-json json-string {:key-fn keyword})]
       (if-let [e (-> body :chart :error)]
         (err {:type :api-error :message (:description e)})
         (let [result (-> body :chart :result)]

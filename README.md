@@ -8,13 +8,13 @@ The library has two tiers. The **stable core** covers prices, historical OHLCV, 
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.1"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.2"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.1"]
+[com.github.clojure-finance/clj-yfinance "0.1.2"]
 ```
 
-**Requires JDK 11+** (uses `java.net.http.HttpClient`). The only runtime dependency is [Cheshire](https://github.com/dakrone/cheshire) for JSON parsing.
+**Requires JDK 11+** (uses `java.net.http.HttpClient`). The only runtime dependency is [charred](https://github.com/cnuernber/charred) for JSON parsing.
 
 ## Core API
 
@@ -438,13 +438,13 @@ clojure -M:nrepl   # starts nREPL on port 7888
 
 ## Roadmap
 
-The following integrations are planned, in priority order. The core library stays lean — Cheshire only, no heavy runtime deps.
+The following integrations are planned, in priority order. The core library stays lean — charred only, no heavy runtime deps.
 
 | Version | Library | What it adds |
 |---------|---------|--------------|
 | 0.1.1 | [Kindly](https://github.com/scicloj/kindly) | ✅ New optional ns `clj-yfinance.kindly` — wraps dataset output with `kind/dataset` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
 | 0.1.1 | [Clay](https://github.com/scicloj/clay) | ✅ `examples/finance_demo.clj` notebook: fetch → tablecloth → tableplot viz → HTML export |
-| 0.1.2 | [charred](https://github.com/cnuernber/charred) | Internal replacement for Cheshire — faster zero-alloc JSON, no API change |
+| 0.1.2 | [charred](https://github.com/cnuernber/charred) | ✅ Internal replacement for Cheshire — faster zero-alloc JSON, no API change |
 | 0.1.3 | [tech.parquet](https://github.com/techascent/tech.parquet) | New optional ns `clj-yfinance.parquet` — `save-historical!`, `load-historical`, `save-multi-ticker!` |
 | 0.1.4 | [tmducken](https://github.com/techascent/tmducken) | New optional ns `clj-yfinance.duckdb` — load datasets into embedded DuckDB, run SQL on prices/fundamentals |
 | 0.1.x | [Noj](https://github.com/scicloj/noj) | Dev-deps + "Using with Noj" README section showing the full quant pipeline |

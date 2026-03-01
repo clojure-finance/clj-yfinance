@@ -17,7 +17,7 @@ The library is organised into two tiers. The **stable core** covers current pric
 | Project type | deps.edn library (also provides `project.clj` for Leiningen) |
 | Clojure | 1.11.1+ |
 | Java | 11+ (requires `java.net.http.HttpClient`) |
-| Runtime dependency | `cheshire/cheshire` 6.1.0 (JSON parsing) |
+| Runtime dependency | `com.cnuernber/charred` 1.038 (JSON parsing) |
 | nREPL port | 7888 (dev only) |
 
 ---
@@ -160,7 +160,7 @@ Parallel fetches (`fetch-prices*`) use a bounded executor with a configurable th
 
 ### Parsing and Key Normalisation
 
-JSON is parsed by Cheshire with keywordized keys. Yahoo's camelCase response keys are converted to idiomatic kebab-case by `camel->kebab` / `kebabize-keys`, with a `key-exceptions` map handling edge cases (e.g. `"gmtoffset"` → `:gmt-offset`). OHLCV data is extracted from the nested `:indicators :quote` structure, with comprehensive validation of timestamps, the quotes object, and all required fields before returning. An empty result array returns `:no-data` rather than `{:ok? true :data nil}`.
+JSON is parsed by charred with keywordized keys (`{:key-fn keyword}`). Yahoo's camelCase response keys are converted to idiomatic kebab-case by `camel->kebab` / `kebabize-keys`, with a `key-exceptions` map handling edge cases (e.g. `"gmtoffset"` → `:gmt-offset`). OHLCV data is extracted from the nested `:indicators :quote` structure, with comprehensive validation of timestamps, the quotes object, and all required fields before returning. An empty result array returns `:no-data` rather than `{:ok? true :data nil}`.
 
 ### Error Types
 
@@ -247,7 +247,7 @@ The `clj-yfinance.kindly` namespace wraps every function in `clj-yfinance.datase
 
 All functions accept the same arguments as their `clj-yfinance.dataset` counterparts.
 
-**Note:** `dividends-splits->dataset` has a known pre-existing bug in the underlying `clj-yfinance.dataset` function (keyword timestamp keys from Cheshire). This will be fixed when Cheshire is replaced with charred in v0.1.2.
+**Note:** `dividends-splits->dataset` has a known pre-existing bug in the underlying `clj-yfinance.dataset` function (keyword timestamp keys). This will be addressed in a future release.
 
 ---
 
@@ -418,13 +418,13 @@ The project uses `tools.build` + `deps-deploy` for packaging and deployment. The
 
 ## Roadmap
 
-The following integrations are planned, in priority order. All are strictly optional — the core library remains lean (Cheshire only, no heavy deps).
+The following integrations are planned, in priority order. All are strictly optional — the core library remains lean (charred only, no heavy deps).
 
 | Phase | Library | Integration level | What it adds |
 |---|---|---|---|
 | 0.1.1 | Kindly | New optional ns `clj-yfinance.kindly` | ✅ Wraps dataset ns output with `kind/dataset` / `kind/table` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
 | 0.1.1 | Clay | Examples only (`examples/finance_demo.clj`) | ✅ Notebook: fetch → tablecloth → tableplot viz (prices, normalised perf, log-returns, rolling vol, density) → HTML export |
-| 0.1.2 | charred | Internal (replaces Cheshire) | Faster zero-alloc JSON parsing; no API change |
+| 0.1.2 | charred | Internal (replaces Cheshire) | ✅ Faster zero-alloc JSON parsing; no API change |
 | 0.1.3 | tech.parquet | New optional ns `clj-yfinance.parquet` | `save-historical!`, `load-historical`, `save-multi-ticker!` — columnar archiving standard |
 | 0.1.4 | tmducken | New optional ns `clj-yfinance.duckdb` | Load datasets into embedded DuckDB; run SQL on prices/fundamentals |
 | 0.1.x | Noj | Dev-deps + README section | "Using with Noj" full pipeline example |

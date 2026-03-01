@@ -29,24 +29,24 @@
    - Session auto-refreshes every hour
    - MAX 1 retry on authentication failure"
   (:require [clj-yfinance.experimental.auth :as auth]
-            [cheshire.core :as json]))
+            [charred.api :as charred]))
 
 (def ^:private base-url "https://query1.finance.yahoo.com/v10/finance/quoteSummary")
 (def ^:private fundamentals-modules "financialData,defaultKeyStatistics")
 
 (defn- err [type message & {:keys [status ticker url suggestion yahoo-error]}]
-  {:type        type
-   :message     message
-   :ticker      ticker
-   :url         url
-   :status      status
+  {:type type
+   :message message
+   :ticker ticker
+   :url url
+   :status status
    :yahoo-error yahoo-error
-   :suggestion  (or suggestion
-                    "If this persists, Yahoo may be blocking requests. Consider using AlphaVantage or Financial Modeling Prep.")})
+   :suggestion (or suggestion
+                   "If this persists, Yahoo may be blocking requests. Consider using AlphaVantage or Financial Modeling Prep.")})
 
 (defn- build-quotesummary-url [ticker modules]
   (let [session (auth/get-session)
-        crumb   (:crumb session)]
+        crumb (:crumb session)]
     (when-not crumb
       (throw (ex-info "No crumb available" {:type :no-crumb})))
     (str base-url "/"
@@ -56,13 +56,13 @@
 
 (defn- parse-quotesummary-response [response ticker]
   (let [status (.statusCode response)
-        body   (.body response)]
+        body (.body response)]
     (cond
       (= 200 status)
       (try
-        (let [data   (json/parse-string body true)
+        (let [data (charred/read-json body {:key-fn keyword})
               result (-> data :quoteSummary :result first)
-              error  (-> data :quoteSummary :error)]
+              error (-> data :quoteSummary :error)]
           (cond
             error
             {:ok? false
@@ -143,7 +143,7 @@
               :financialData {:currentPrice {:raw 255.78 :fmt \"255.78\"} ...}}}"
   [ticker modules]
   (try
-    (let [url    (build-quotesummary-url ticker modules)
+    (let [url (build-quotesummary-url ticker modules)
           result (auth/authenticated-request url)]
       (if (:ok? result)
         (parse-quotesummary-response (:response result) ticker)
@@ -298,7 +298,7 @@
 
 (defn- financials-modules [period]
   (case period
-    :annual    "incomeStatementHistory,balanceSheetHistory,cashflowStatementHistory"
+    :annual "incomeStatementHistory,balanceSheetHistory,cashflowStatementHistory"
     :quarterly "incomeStatementHistoryQuarterly,balanceSheetHistoryQuarterly,cashflowStatementHistoryQuarterly"
     (throw (ex-info "Invalid :period - must be :annual or :quarterly" {:period period}))))
 
@@ -347,9 +347,9 @@
     (fetch-quotesummary* ticker (financials-modules period))
     (catch clojure.lang.ExceptionInfo e
       {:ok? false
-       :error {:type    :invalid-opts
+       :error {:type :invalid-opts
                :message (ex-message e)
-               :ticker  ticker}})))
+               :ticker ticker}})))
 
 (defn fetch-financials
   "Fetch financial statements for a ticker (simple API).
