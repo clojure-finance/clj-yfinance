@@ -30,6 +30,9 @@
   {:extra-deps {com.techascent/tmd-parquet {:mvn/version "1.000-beta-39"}
                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}
 
+  :noj
+  {:extra-deps {org.scicloj/noj {:mvn/version "2-beta18"}}}
+
   :build
   {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}
           slipset/deps-deploy {:mvn/version "0.2.2"}}

@@ -511,7 +511,7 @@ The following integrations are planned, in priority order. All are strictly opti
 
 | Phase | Library | Integration level | What it adds |
 |---|---|---|---|
-| 0.1.x | Noj | Dev-deps + README section | "Using with Noj" full pipeline example |
+| 0.1.x | Noj | Dev-deps + README section | "Using with Noj" full pipeline example — shipped as a README section (no version bump) |
 
 **Design principle:** core always returns plain Clojure data (maps/vectors). Dataset conversion stays in `clj-yfinance.dataset`. Kindly metadata stays in `clj-yfinance.kindly`. No `:as` option on core functions — explicit is better than magic.
 

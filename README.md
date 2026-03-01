@@ -344,6 +344,102 @@ DuckDB also requires a native shared library (`libduckdb`). On most Linux distri
 
 Start your REPL with `clojure -M:duckdb:nrepl` to use this namespace.
 
+## Using with Noj
+
+[Noj](https://github.com/scicloj/noj) is the Scicloj batteries-included data science toolkit — it bundles tablecloth, tableplot, fastmath, Clay, and more into a single tested dependency. clj-yfinance pairs naturally with it as the data acquisition layer.
+
+Add the `:noj` alias (already included in the project's `deps.edn`):
+
+```clojure
+;; deps.edn alias
+{:aliases {:noj {:extra-deps {org.scicloj/noj {:mvn/version "2-beta18"}}}}}
+```
+
+Start your REPL with both aliases:
+
+```bash
+clojure -M:noj:nrepl
+```
+
+### Full pipeline: fetch → tablecloth → fastmath → Clay
+
+```clojure
+(require '[clj-yfinance.core    :as yf])
+(require '[clj-yfinance.dataset :as yfd])
+(require '[tablecloth.api       :as tc])
+(require '[fastmath.stats       :as stats])
+(require '[scicloj.kindly.v4.kind :as kind])
+(require '[scicloj.clay.v2.api    :as clay])
+```
+
+**Step 1 — Fetch and convert to a dataset:**
+
+```clojure
+(def tickers ["AAPL" "GOOGL" "MSFT" "0005.HK"])
+
+(def prices-ds
+  (yfd/multi-ticker->dataset tickers :period "1y"))
+```
+
+**Step 2 — Compute log-returns with tablecloth:**
+
+```clojure
+(defn log-returns [ds]
+  (tc/add-column ds :log-return
+    (fn [rows]
+      (let [c (vec (rows :close))]
+        (into [nil]
+              (map (fn [a b] (Math/log (/ b a)))
+                   c (rest c)))))))
+
+(def returns-ds
+  (-> prices-ds
+      (tc/group-by :ticker)
+      (tc/process #(log-return %))
+      tc/ungroup))
+```
+
+**Step 3 — Summary statistics with fastmath:**
+
+```clojure
+(defn ticker-stats [ds ticker]
+  (let [rets (->> (tc/select-rows ds #(= (:ticker %) ticker))
+                  :log-return
+                  (remove nil?)
+                  vec)]
+    {:ticker   ticker
+     :mean     (stats/mean rets)
+     :std      (stats/stddev rets)
+     :skewness (stats/skewness rets)
+     :kurtosis (stats/kurtosis rets)
+     :sharpe   (/ (stats/mean rets) (stats/stddev rets))}))
+
+(def summary
+  (map #(ticker-stats returns-ds %) tickers))
+```
+
+**Step 4 — Visualise and render with Clay:**
+
+```clojure
+;; Render as an interactive Clay notebook
+(clay/make! {:source-path "examples/finance_demo.clj"})
+
+;; Or tag individual values for inline rendering in a notebook namespace
+(kind/table (tc/dataset summary))
+```
+
+### What Noj adds over the base stack
+
+| Need | Library (via Noj) |
+|------|-------------------|
+| Data wrangling | tablecloth |
+| Charting | tableplot (Plotly/Vega-Lite) |
+| Statistics | fastmath |
+| ML / modelling | metamorph.ml |
+| Notebook rendering | Clay + Kindly |
+
+Because Noj pulls in all these libraries with tested, compatible versions, you can mix and match without worrying about dependency conflicts. clj-yfinance handles the data acquisition; Noj handles everything downstream.
+
 ## Experimental: Fundamentals & Company Data
 
 > ⚠️ **EXPERIMENTAL** — uses Yahoo's authenticated `quoteSummary` endpoint via a cookie/crumb session. Works reliably today but Yahoo can change or revoke this at any time without notice. Treat as best-effort, not production-grade.
