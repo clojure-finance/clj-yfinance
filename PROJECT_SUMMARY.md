@@ -28,6 +28,7 @@ The library is organised into two tiers. The **stable core** covers current pric
 |---|---|
 | `src/clj_yfinance/core.clj` | Public API — 10 functions (5 simple + 5 verbose) |
 | `src/clj_yfinance/dataset.clj` | Optional dataset integration (requires tech.ml.dataset) |
+| `src/clj_yfinance/kindly.clj` | Optional Kindly-tagged dataset wrappers (requires Kindly + tech.ml.dataset) |
 | `src/clj_yfinance/http.clj` | HTTP client, retry logic, request/response pipeline |
 | `src/clj_yfinance/parse.clj` | Pure JSON parsing, URL encoding, data transformation |
 | `src/clj_yfinance/validation.clj` | Input validation (strict) and interval/range warnings (permissive) |
@@ -222,6 +223,34 @@ For datasets too large to fit in memory, [Clojask](https://github.com/clojure-fi
 
 ---
 
+## Kindly Integration (Optional)
+
+The `clj-yfinance.kindly` namespace wraps every function in `clj-yfinance.dataset` and tags the output with `kind/dataset` metadata. This makes datasets auto-render as interactive tables in any [Kindly](https://github.com/scicloj/kindly)-aware tool: Clay notebooks, Portal, Clerk, etc.
+
+```clojure
+;; Add to deps.edn
+{:aliases {:kindly {:extra-deps {org.scicloj/kindly {:mvn/version "4-beta23"}
+                                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
+
+(require '[clj-yfinance.kindly :as yfk])
+
+(yfk/historical->dataset "AAPL" :period "1mo")
+; => #tech.v3.dataset with meta {:kindly/kind :kind/dataset}
+;    auto-renders as interactive table in Clay/Portal
+
+(yfk/prices->dataset (yf/fetch-prices ["AAPL" "GOOGL" "MSFT"]))
+(yfk/multi-ticker->dataset ["AAPL" "GOOGL" "MSFT"] :period "1y")
+(yfk/dividends-splits->dataset "AAPL" :period "10y")
+; => {:dividends <kind/dataset> :splits <kind/dataset>}
+(yfk/info->dataset "AAPL")
+```
+
+All functions accept the same arguments as their `clj-yfinance.dataset` counterparts.
+
+**Note:** `dividends-splits->dataset` has a known pre-existing bug in the underlying `clj-yfinance.dataset` function (keyword timestamp keys from Cheshire). This will be fixed when Cheshire is replaced with charred in v0.1.2.
+
+---
+
 ## Experimental: Fundamentals & Company Data
 
 The `clj-yfinance.experimental.fundamentals` namespace wraps Yahoo's authenticated `quoteSummary` endpoint. Authentication is fully automatic: on first use the library fetches a session cookie from `fc.yahoo.com` and a crumb token from Yahoo's API, caches the session, and refreshes it after one hour. No setup or API key required.
@@ -393,7 +422,7 @@ The following integrations are planned, in priority order. All are strictly opti
 
 | Phase | Library | Integration level | What it adds |
 |---|---|---|---|
-| 0.1.1 | Kindly | New optional ns `clj-yfinance.kindly` | Wraps dataset ns output with `kind/dataset` / `kind/table` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
+| 0.1.1 | Kindly | New optional ns `clj-yfinance.kindly` | ✅ Wraps dataset ns output with `kind/dataset` / `kind/table` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
 | 0.1.1 | Clay | Examples only (`examples/finance-demo.clj`) | Polished notebook: fetch → tablecloth → tableplot viz → HTML export |
 | 0.1.2 | charred | Internal (replaces Cheshire) | Faster zero-alloc JSON parsing; no API change |
 | 0.1.3 | tech.parquet | New optional ns `clj-yfinance.parquet` | `save-historical!`, `load-historical`, `save-multi-ticker!` — columnar archiving standard |

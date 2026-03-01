@@ -11,6 +11,10 @@
   :dataset
   {:extra-deps {techascent/tech.ml.dataset {:mvn/version "7.032"}}}
 
+  :kindly
+  {:extra-deps {org.scicloj/kindly {:mvn/version "4-beta23"}
+                techascent/tech.ml.dataset {:mvn/version "7.032"}}}
+
   :build
   {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}
           slipset/deps-deploy {:mvn/version "0.2.2"}}

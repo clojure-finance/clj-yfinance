@@ -183,6 +183,27 @@ For datasets too large to fit in memory, [Clojask](https://github.com/clojure-fi
 (def ck-df (ck/dataframe "data.csv"))
 ```
 
+## Kindly Integration
+
+For use with [Clay](https://github.com/scicloj/clay), [Portal](https://github.com/djblue/portal), and any other [Kindly](https://github.com/scicloj/kindly)-aware tool, add the `:kindly` alias and use the `clj-yfinance.kindly` namespace:
+
+```clojure
+;; deps.edn alias
+{:aliases {:kindly {:extra-deps {org.scicloj/kindly {:mvn/version "4-beta23"}
+                                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
+```
+
+```clojure
+(require '[clj-yfinance.kindly :as yfk])
+
+;; Same API as clj-yfinance.dataset but output is tagged with kind/dataset —
+;; auto-renders as an interactive table in Clay, Portal, etc.
+(yfk/historical->dataset "AAPL" :period "1mo")
+(yfk/prices->dataset (yf/fetch-prices ["AAPL" "GOOGL" "MSFT"]))
+(yfk/multi-ticker->dataset ["AAPL" "GOOGL" "MSFT"] :period "1y")
+(yfk/info->dataset "AAPL")
+```
+
 ## Experimental: Fundamentals & Company Data
 
 > ⚠️ **EXPERIMENTAL** — uses Yahoo's authenticated `quoteSummary` endpoint via a cookie/crumb session. Works reliably today but Yahoo can change or revoke this at any time without notice. Treat as best-effort, not production-grade.
@@ -358,7 +379,7 @@ The following integrations are planned, in priority order. The core library stay
 
 | Version | Library | What it adds |
 |---------|---------|--------------|
-| 0.1.1 | [Kindly](https://github.com/scicloj/kindly) | New optional ns `clj-yfinance.kindly` — wraps dataset output with `kind/dataset` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
+| 0.1.1 | [Kindly](https://github.com/scicloj/kindly) | ✅ New optional ns `clj-yfinance.kindly` — wraps dataset output with `kind/dataset` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
 | 0.1.1 | [Clay](https://github.com/scicloj/clay) | `examples/finance-demo.clj` notebook: fetch → tablecloth → tableplot → HTML export |
 | 0.1.2 | [charred](https://github.com/cnuernber/charred) | Internal replacement for Cheshire — faster zero-alloc JSON, no API change |
 | 0.1.3 | [tech.parquet](https://github.com/techascent/tech.parquet) | New optional ns `clj-yfinance.parquet` — `save-historical!`, `load-historical`, `save-multi-ticker!` |
