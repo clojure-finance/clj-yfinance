@@ -32,11 +32,13 @@ The library is organised into two tiers. The **stable core** covers current pric
 | `src/clj_yfinance/http.clj` | HTTP client, retry logic, request/response pipeline |
 | `src/clj_yfinance/parse.clj` | Pure JSON parsing, URL encoding, data transformation |
 | `src/clj_yfinance/validation.clj` | Input validation (strict) and interval/range warnings (permissive) |
+| `src/clj_yfinance/parquet.clj` | Optional Parquet save/load functions (requires tmd-parquet + tech.ml.dataset) |
 | `src/clj_yfinance/experimental/auth.clj` | Cookie/crumb session management for Yahoo authentication |
 | `src/clj_yfinance/experimental/fundamentals.clj` | `fetch-fundamentals`, `fetch-company-info`, `fetch-analyst`, `fetch-financials`, `fetch-quotesummary*` |
 | `src/clj_yfinance/experimental/options.clj` | `fetch-options`, `fetch-options*` — options chains via the v7 endpoint |
 | `examples/finance_demo.clj` | Clay notebook: fetch → tablecloth → tableplot viz → HTML export |
 | `test/clj_yfinance/core_test.clj` | Unit tests for core functions (105 assertions, no network calls) |
+| `test/clj_yfinance/parquet_test.clj` | Unit tests for Parquet save/load (4 tests, 15 assertions) |
 | `test/clj_yfinance/dataset_test.clj` | Unit tests for dataset conversions (requires tech.ml.dataset) |
 | `test/clj_yfinance/experimental/auth_test.clj` | Unit tests for auth session logic (5 tests, 14 assertions) |
 | `test/clj_yfinance/experimental/fundamentals_test.clj` | Unit tests for fundamentals parsing (6 tests, 61 assertions) |
@@ -269,6 +271,28 @@ The `:clay` alias in `deps.edn` pulls in Clay, tablecloth, tableplot, and tech.m
 
 ---
 
+## Parquet Integration (Optional)
+
+The `clj-yfinance.parquet` namespace provides save/load functions for columnar archiving of financial datasets using [tmd-parquet](https://github.com/techascent/tech.parquet).
+
+```clojure
+;; Add to deps.edn (already included as the :parquet alias)
+{:aliases {:parquet {:extra-deps {com.techascent/tmd-parquet {:mvn/version "1.000-beta-39"}
+                                  techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
+
+(require '[clj-yfinance.parquet :as yfp])
+
+(yfp/save-historical! "AAPL" "aapl.parquet" :period "5y")
+(yfp/save-multi-ticker! ["AAPL" "GOOGL" "MSFT"] "tech.parquet" :period "1y")
+(yfp/load-historical "aapl.parquet")   ; => dataset with keyword column names
+(yfp/load-dataset "tech.parquet")
+(yfp/save-dataset! my-enriched-ds "enriched.parquet")
+```
+
+Column names are keywordized on load. All functions return the dataset on success, nil on failure.
+
+---
+
 ## Experimental: Fundamentals & Company Data
 
 The `clj-yfinance.experimental.fundamentals` namespace wraps Yahoo's authenticated `quoteSummary` endpoint. Authentication is fully automatic: on first use the library fetches a session cookie from `fc.yahoo.com` and a crumb token from Yahoo's API, caches the session, and refreshes it after one hour. No setup or API key required.
@@ -365,6 +389,9 @@ clojure -M:test -e "(require 'clj-yfinance.experimental.options-test) (clj-yfina
 
 # Dataset (requires tech.ml.dataset)
 clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.dataset-test/run-tests)"
+
+# Parquet (requires tmd-parquet + tech.ml.dataset)
+clojure -M:test:parquet -e "(require 'clj-yfinance.parquet-test) (clj-yfinance.parquet-test/run-tests)"
 ```
 
 Test coverage includes: URL encoding, query string building, epoch time conversion, interval/range validation, input validation (periods, intervals, start/end ordering), time parameter construction, JSON parsing for all success and error branches, result envelope constructors, retry logic (retryable vs non-retryable errors), key normalisation (camelCase → kebab-case), future timeout handling, and dataset column types.
@@ -397,14 +424,14 @@ clojure -M:nrepl          # connects on port 7888
 
 ## Publishing
 
-**Published on Clojars** as `com.github.clojure-finance/clj-yfinance 0.1.2`.
+**Published on Clojars** as `com.github.clojure-finance/clj-yfinance 0.1.3`.
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.2"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.3"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.2"]
+[com.github.clojure-finance/clj-yfinance "0.1.3"]
 ```
 
 **GitHub repository:** https://github.com/clojure-finance/clj-yfinance
@@ -440,7 +467,6 @@ The following integrations are planned, in priority order. All are strictly opti
 
 | Phase | Library | Integration level | What it adds |
 |---|---|---|---|
-| 0.1.3 | tech.parquet | New optional ns `clj-yfinance.parquet` | `save-historical!`, `save-multi-ticker!`, `load-historical` — columnar archiving standard |
 | 0.1.4 | tmducken | New optional ns `clj-yfinance.duckdb` | Load datasets into embedded DuckDB; run SQL on prices/fundamentals |
 | 0.1.x | Noj | Dev-deps + README section | "Using with Noj" full pipeline example |
 

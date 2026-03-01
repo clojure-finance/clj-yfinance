@@ -8,10 +8,10 @@ The library has two tiers. The **stable core** covers prices, historical OHLCV, 
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.2"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.3"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.2"]
+[com.github.clojure-finance/clj-yfinance "0.1.3"]
 ```
 
 **Requires JDK 11+** (uses `java.net.http.HttpClient`). The only runtime dependency is [charred](https://github.com/cnuernber/charred) for JSON parsing.
@@ -269,6 +269,38 @@ To render the entire notebook to a static HTML file:
 
 The output is written to `docs/finance_demo.html` by default.
 
+## Parquet Integration
+
+For columnar archiving of financial datasets, add the `:parquet` alias and use the `clj-yfinance.parquet` namespace:
+
+```clojure
+;; deps.edn alias (already included in the project's deps.edn)
+{:aliases {:parquet {:extra-deps {com.techascent/tmd-parquet {:mvn/version "1.000-beta-39"}
+                                  techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
+```
+
+```clojure
+(require '[clj-yfinance.parquet :as yfp])
+
+;; Fetch and save one ticker
+(yfp/save-historical! "AAPL" "aapl.parquet" :period "5y")
+
+;; Fetch and save multiple tickers in one file (includes :ticker column)
+(yfp/save-multi-ticker! ["AAPL" "GOOGL" "MSFT"] "tech.parquet" :period "1y")
+
+;; Load back as a dataset with keyword column names
+(yfp/load-historical "aapl.parquet")
+(yfp/load-dataset "tech.parquet")
+
+;; Save an already-transformed dataset
+(require '[tablecloth.api :as tc])
+(-> (yfd/historical->dataset "AAPL" :period "1y")
+    (tc/add-column :log-return ...)
+    (yfp/save-dataset! "aapl-enriched.parquet"))
+```
+
+Start your REPL with `clojure -M:parquet:nrepl` to use this namespace.
+
 ## Experimental: Fundamentals & Company Data
 
 > ⚠️ **EXPERIMENTAL** — uses Yahoo's authenticated `quoteSummary` endpoint via a cookie/crumb session. Works reliably today but Yahoo can change or revoke this at any time without notice. Treat as best-effort, not production-grade.
@@ -430,6 +462,9 @@ clojure -M:test -e "(require 'clj-yfinance.experimental.options-test) (clj-yfina
 
 # Dataset (requires tech.ml.dataset)
 clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.dataset-test/run-tests)"
+
+# Parquet (requires tmd-parquet + tech.ml.dataset)
+clojure -M:test:parquet -e "(require 'clj-yfinance.parquet-test) (clj-yfinance.parquet-test/run-tests)"
 ```
 
 ### REPL
@@ -444,7 +479,6 @@ The following integrations are planned, in priority order. The core library stay
 
 | Version | Library | What it adds |
 |---------|---------|--------------|
-| 0.1.3 | [tech.parquet](https://github.com/techascent/tech.parquet) | New optional ns `clj-yfinance.parquet` — `save-historical!`, `load-historical`, `save-multi-ticker!` |
 | 0.1.4 | [tmducken](https://github.com/techascent/tmducken) | New optional ns `clj-yfinance.duckdb` — load datasets into embedded DuckDB, run SQL on prices/fundamentals |
 | 0.1.x | [Noj](https://github.com/scicloj/noj) | Dev-deps + "Using with Noj" README section showing the full quant pipeline |
 
