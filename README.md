@@ -6,14 +6,6 @@ The library has two tiers. The **stable core** covers prices, historical OHLCV, 
 
 ## Installation
 
-> **Not yet published to Clojars.** Clone the repo and use as a local dependency for now.
-
-```bash
-git clone https://github.com/clojure-finance/clj-yfinance.git
-```
-
-When published, coordinates will be:
-
 ```clojure
 ;; deps.edn
 com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}

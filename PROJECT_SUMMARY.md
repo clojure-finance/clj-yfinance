@@ -40,6 +40,7 @@ The library is organised into two tiers. The **stable core** covers current pric
 | `test/clj_yfinance/experimental/fundamentals_test.clj` | Unit tests for fundamentals parsing (6 tests, 61 assertions) |
 | `test/clj_yfinance/experimental/options_test.clj` | Unit tests for options parsing (4 tests, 66 assertions) |
 | `deps.edn` | Clojure CLI project file |
+| `build.clj` | Build & deploy tasks (`jar`, `deploy`, `clean`) via tools.build + deps-deploy |
 | `project.clj` | Leiningen project file |
 | `README.md` | User-facing documentation with usage examples |
 
@@ -349,15 +350,40 @@ clojure -M:nrepl          # connects on port 7888
 
 ## Publishing
 
-Not yet published to Clojars. Clone the repo and use as a local dependency for now.
+**Published on Clojars** as `com.github.clojure-finance/clj-yfinance 0.1.0`.
+
+```clojure
+;; deps.edn
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}
+
+;; project.clj
+[com.github.clojure-finance/clj-yfinance "0.1.0"]
+```
 
 **GitHub repository:** https://github.com/clojure-finance/clj-yfinance
 
-**Planned coordinates:** `com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}`
+### Build & Deploy Tooling
 
-**To publish:**
-1. Generate `pom.xml` via `clojure -Spom`
-2. Deploy with `lein deploy clojars` or `clj -T:build deploy`
+The project uses `tools.build` + `deps-deploy` for packaging and deployment. The `:build` alias in `deps.edn` and `build.clj` in the project root handle this.
+
+```clojure
+;; deps.edn :build alias
+{:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}
+        slipset/deps-deploy {:mvn/version "0.2.2"}}
+ :ns-default build}
+```
+
+**To deploy a new version:**
+1. Bump `version` in `build.clj`
+2. Delete any stale `pom.xml` from the project root (`rm pom.xml`)
+3. Set `CLOJARS_USERNAME` and `CLOJARS_PASSWORD` (deploy token) in your shell
+4. Run `clj -T:build deploy` from the project root
+
+**Important notes:**
+- `build.clj` copies the generated POM to the project root (required by `deps-deploy`)
+- The POM must include a license — it is added via `:pom-data` in `b/write-pom`
+- If a `pom.xml` already exists in the project root, `tools.build` uses it as a template and ignores `:pom-data`, so always delete it before re-deploying
+- `CLOJARS_*` env vars must be set in the shell that runs `clj -T:build deploy`; Claude Desktop does not inherit interactive shell environment variables
 
 ---
 
