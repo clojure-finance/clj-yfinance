@@ -387,6 +387,23 @@ The project uses `tools.build` + `deps-deploy` for packaging and deployment. The
 
 ---
 
+## Roadmap
+
+The following integrations are planned, in priority order. All are strictly optional — the core library remains lean (Cheshire only, no heavy deps).
+
+| Phase | Library | Integration level | What it adds |
+|---|---|---|---|
+| 0.1.1 | Kindly | New optional ns `clj-yfinance.kindly` | Wraps dataset ns output with `kind/dataset` / `kind/table` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
+| 0.1.1 | Clay | Examples only (`examples/finance-demo.clj`) | Polished notebook: fetch → tablecloth → tableplot viz → HTML export |
+| 0.1.2 | charred | Internal (replaces Cheshire) | Faster zero-alloc JSON parsing; no API change |
+| 0.1.3 | tech.parquet | New optional ns `clj-yfinance.parquet` | `save-historical!`, `load-historical`, `save-multi-ticker!` — columnar archiving standard |
+| 0.1.4 | tmducken | New optional ns `clj-yfinance.duckdb` | Load datasets into embedded DuckDB; run SQL on prices/fundamentals |
+| 0.1.x | Noj | Dev-deps + README section | "Using with Noj" full pipeline example |
+
+**Design principle:** core always returns plain Clojure data (maps/vectors). Dataset conversion stays in `clj-yfinance.dataset`. Kindly metadata stays in `clj-yfinance.kindly`. No `:as` option on core functions — explicit is better than magic.
+
+---
+
 ## Limitations & Alternatives
 
 The stable core uses Yahoo's public chart endpoint, which requires no authentication and has been stable for years. The experimental namespaces use Yahoo's authenticated endpoints with all the fragility that implies. Specific limitations worth knowing:

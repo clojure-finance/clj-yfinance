@@ -352,6 +352,21 @@ clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.d
 clojure -M:nrepl   # starts nREPL on port 7888
 ```
 
+## Roadmap
+
+The following integrations are planned, in priority order. The core library stays lean — Cheshire only, no heavy runtime deps.
+
+| Version | Library | What it adds |
+|---------|---------|--------------|
+| 0.1.1 | [Kindly](https://github.com/scicloj/kindly) | New optional ns `clj-yfinance.kindly` — wraps dataset output with `kind/dataset` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
+| 0.1.1 | [Clay](https://github.com/scicloj/clay) | `examples/finance-demo.clj` notebook: fetch → tablecloth → tableplot → HTML export |
+| 0.1.2 | [charred](https://github.com/cnuernber/charred) | Internal replacement for Cheshire — faster zero-alloc JSON, no API change |
+| 0.1.3 | [tech.parquet](https://github.com/techascent/tech.parquet) | New optional ns `clj-yfinance.parquet` — `save-historical!`, `load-historical`, `save-multi-ticker!` |
+| 0.1.4 | [tmducken](https://github.com/techascent/tmducken) | New optional ns `clj-yfinance.duckdb` — load datasets into embedded DuckDB, run SQL on prices/fundamentals |
+| 0.1.x | [Noj](https://github.com/scicloj/noj) | Dev-deps + "Using with Noj" README section showing the full quant pipeline |
+
+**Design principle:** core always returns plain Clojure data. Dataset conversion stays in `clj-yfinance.dataset`. Kindly metadata stays in `clj-yfinance.kindly`. No magic `:as` options — explicit is better.
+
 ## Caveats & Alternatives
 
 The stable core (prices, historical data, dividends, info) uses Yahoo's public chart endpoint, which has been stable for years and requires no authentication. The experimental namespaces use Yahoo's authenticated endpoints, which work today but carry no guarantees.
