@@ -8,10 +8,10 @@ The library has two tiers. The **stable core** covers prices, historical OHLCV, 
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.0"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.1"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.0"]
+[com.github.clojure-finance/clj-yfinance "0.1.1"]
 ```
 
 **Requires JDK 11+** (uses `java.net.http.HttpClient`). The only runtime dependency is [Cheshire](https://github.com/dakrone/cheshire) for JSON parsing.
@@ -204,6 +204,69 @@ For use with [Clay](https://github.com/scicloj/clay), [Portal](https://github.co
 (yfk/info->dataset "AAPL")
 ```
 
+## Demo Notebook (Clay)
+
+The `examples/finance_demo.clj` notebook demonstrates the full pipeline — fetching data, transforming it with tablecloth, and rendering interactive charts with tableplot — inside a [Clay](https://github.com/scicloj/clay) notebook.
+
+**What the notebook covers:**
+
+1. Current prices for a basket of tickers
+2. Historical OHLCV data as a typed dataset
+3. Tablecloth transformations (log-returns, date formatting)
+4. Multi-ticker combined dataset
+5. Closing price chart (interactive Plotly)
+6. Normalised performance chart (indexed to 100)
+7. Daily log-returns chart
+8. 20-day rolling volatility (annualised)
+9. Returns distribution (density plot)
+10. Dividend history
+11. Ticker info comparison table
+
+### Setup
+
+Add the `:clay` alias to your `deps.edn` (already included in the project's `deps.edn`):
+
+```clojure
+:clay {:extra-paths ["examples"]
+       :extra-deps {org.scicloj/clay       {:mvn/version "2-beta56"}
+                    scicloj/tablecloth      {:mvn/version "7.062"}
+                    org.scicloj/tableplot   {:mvn/version "1-beta14"}
+                    techascent/tech.ml.dataset {:mvn/version "7.032"}}}
+```
+
+### Running with your editor
+
+Start a REPL with the `:clay` alias:
+
+```bash
+clojure -M:clay:nrepl
+```
+
+Then evaluate the namespace in your editor. Clay integrates with all major Clojure editors:
+
+- **Calva** (VS Code) — use the Clay commands from the command palette
+- **CIDER** (Emacs) — use the Clay CIDER commands (see [Clay setup](https://scicloj.github.io/clay/#setup))
+- **Cursive** (IntelliJ) — add Clay REPL commands via `.idea/repl-commands.xml`
+
+When you evaluate a form, Clay opens `http://localhost:1971/` in your browser and updates it live as you evaluate more forms.
+
+### Rendering to HTML
+
+To render the entire notebook to a static HTML file:
+
+```clojure
+(require '[scicloj.clay.v2.api :as clay])
+
+;; Render and open in browser
+(clay/make! {:source-path "examples/finance_demo.clj"})
+
+;; Render to file without opening browser
+(clay/make! {:source-path "examples/finance_demo.clj"
+             :show false})
+```
+
+The output is written to `docs/finance_demo.html` by default.
+
 ## Experimental: Fundamentals & Company Data
 
 > ⚠️ **EXPERIMENTAL** — uses Yahoo's authenticated `quoteSummary` endpoint via a cookie/crumb session. Works reliably today but Yahoo can change or revoke this at any time without notice. Treat as best-effort, not production-grade.
@@ -380,7 +443,7 @@ The following integrations are planned, in priority order. The core library stay
 | Version | Library | What it adds |
 |---------|---------|--------------|
 | 0.1.1 | [Kindly](https://github.com/scicloj/kindly) | ✅ New optional ns `clj-yfinance.kindly` — wraps dataset output with `kind/dataset` metadata for auto-rendering in Clay, Portal, and any Kindly-aware tool |
-| 0.1.1 | [Clay](https://github.com/scicloj/clay) | `examples/finance-demo.clj` notebook: fetch → tablecloth → tableplot → HTML export |
+| 0.1.1 | [Clay](https://github.com/scicloj/clay) | ✅ `examples/finance_demo.clj` notebook: fetch → tablecloth → tableplot viz → HTML export |
 | 0.1.2 | [charred](https://github.com/cnuernber/charred) | Internal replacement for Cheshire — faster zero-alloc JSON, no API change |
 | 0.1.3 | [tech.parquet](https://github.com/techascent/tech.parquet) | New optional ns `clj-yfinance.parquet` — `save-historical!`, `load-historical`, `save-multi-ticker!` |
 | 0.1.4 | [tmducken](https://github.com/techascent/tmducken) | New optional ns `clj-yfinance.duckdb` — load datasets into embedded DuckDB, run SQL on prices/fundamentals |

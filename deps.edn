@@ -15,6 +15,13 @@
   {:extra-deps {org.scicloj/kindly {:mvn/version "4-beta23"}
                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}
 
+  :clay
+  {:extra-paths ["examples"]
+   :extra-deps {org.scicloj/clay {:mvn/version "2-beta56"}
+                scicloj/tablecloth {:mvn/version "7.062"}
+                org.scicloj/tableplot {:mvn/version "1-beta14"}
+                techascent/tech.ml.dataset {:mvn/version "7.032"}}}
+
   :build
   {:deps {io.github.clojure/tools.build {:mvn/version "0.10.12"}
           slipset/deps-deploy {:mvn/version "0.2.2"}}
