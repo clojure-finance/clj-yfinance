@@ -370,3 +370,61 @@
   (let [result (fetch-financials* ticker :period period)]
     (when (:ok? result)
       (:data result))))
+
+(defn fetch-calendar*
+  "Fetch upcoming earnings dates and dividend dates for a ticker (verbose API).
+
+   Returns {:ok? true :data {...}} or {:ok? false :error {...}}.
+
+   :data contains the :calendarEvents map with fields:
+   - :earnings
+     - :earningsDate         - Vector of upcoming earnings date(s) [{:raw epoch :fmt date}]
+     - :earningsCallDate     - Vector of earnings call date(s) [{:raw epoch :fmt date}]
+     - :isEarningsDateEstimate - Boolean: true if date is estimated, false if confirmed
+     - :earningsAverage / :earningsHigh / :earningsLow  - EPS consensus estimates
+     - :revenueAverage / :revenueHigh / :revenueLow     - Revenue consensus estimates
+   - :exDividendDate         - Ex-dividend date {:raw epoch :fmt date}
+   - :dividendDate           - Dividend payment date {:raw epoch :fmt date}
+
+   Example:
+   (fetch-calendar* \"AAPL\")
+   => {:ok? true
+       :data {:calendarEvents
+              {:earnings {:earningsDate [{:raw 1777582800 :fmt \"2026-04-30\"}]
+                          :earningsCallDate [{:raw 1769724000 :fmt \"2026-01-29\"}]
+                          :isEarningsDateEstimate false
+                          :earningsAverage {:raw 1.95403 :fmt \"1.95\"}
+                          :earningsHigh {:raw 2.16 :fmt \"2.16\"}
+                          :earningsLow {:raw 1.85 :fmt \"1.85\"}
+                          :revenueAverage {:raw 109083851330 :fmt \"109.08B\"}
+                          :revenueHigh {:raw 112596000000 :fmt \"112.6B\"}
+                          :revenueLow {:raw 105000000000 :fmt \"105B\"}}
+               :exDividendDate {:raw 1770595200 :fmt \"2026-02-09\"}
+               :dividendDate {:raw 1770854400 :fmt \"2026-02-12\"}}}}"
+  [ticker]
+  (fetch-quotesummary* ticker "calendarEvents"))
+
+(defn fetch-calendar
+  "Fetch upcoming earnings dates and dividend dates for a ticker (simple API).
+
+   Returns the :calendarEvents map directly, or nil on failure.
+   For error details, use fetch-calendar* instead.
+
+   Key fields:
+   - (-> result :earnings :earningsDate first :fmt)  - Next earnings date string
+   - (-> result :earnings :earningsDate first :raw)  - Next earnings date epoch seconds
+   - (-> result :earnings :isEarningsDateEstimate)   - true if estimated
+   - (-> result :exDividendDate :fmt)                - Ex-dividend date string
+
+   Example:
+   (fetch-calendar \"AAPL\")
+   => {:earnings {:earningsDate [{:raw 1777582800 :fmt \"2026-04-30\"}]
+                  :earningsCallDate [{:raw 1769724000 :fmt \"2026-01-29\"}]
+                  :isEarningsDateEstimate false
+                  :earningsAverage {:raw 1.95403 :fmt \"1.95\"} ...}
+       :exDividendDate {:raw 1770595200 :fmt \"2026-02-09\"}
+       :dividendDate {:raw 1770854400 :fmt \"2026-02-12\"}}"
+  [ticker]
+  (let [result (fetch-calendar* ticker)]
+    (when (:ok? result)
+      (-> result :data :calendarEvents))))

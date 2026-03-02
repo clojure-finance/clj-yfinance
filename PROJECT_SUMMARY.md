@@ -366,6 +366,7 @@ On 401 responses the session is refreshed once automatically. Beyond that, error
 | `fetch-company-info` / `*` | `assetProfile` | `:assetProfile` map (sector, industry, employees, officers) |
 | `fetch-analyst` / `*` | `earningsTrend, recommendationTrend, earningsHistory` | Map with all three module keys |
 | `fetch-financials` / `*` | income/balance/cashflow (annual or quarterly) | Map with statement keys |
+| `fetch-calendar` / `*` | `calendarEvents` | `:calendarEvents` map with earnings dates, call dates, EPS/revenue estimates, dividend dates |
 | `fetch-quotesummary*` | any (caller-specified) | `{:ok? true :data {...}}` |
 
 `fetch-financials` accepts `:period :annual` (default) or `:period :quarterly`; an invalid value returns `:invalid-opts` without a network call.

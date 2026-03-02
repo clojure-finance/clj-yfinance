@@ -458,6 +458,7 @@ Authentication is fully automatic — the library fetches a session cookie from 
 | `fetch-company-info` / `*` | Sector, industry, description, employees, executive officers |
 | `fetch-analyst` / `*` | EPS/revenue estimates, buy/hold/sell trends, earnings surprises |
 | `fetch-financials` / `*` | Income statement, balance sheet, cash flow (annual or quarterly) |
+| `fetch-calendar` / `*` | Upcoming earnings dates, call dates, EPS/revenue estimates, ex-dividend date |
 | `fetch-quotesummary*` | Raw access to any `quoteSummary` module combination |
 
 ### Usage
@@ -507,6 +508,22 @@ Authentication is fully automatic — the library fetches a session cookie from 
 ;; => {:incomeStatementHistoryQuarterly   {...}
 ;;     :balanceSheetHistoryQuarterly      {...}
 ;;     :cashflowStatementHistoryQuarterly {...}}
+
+;; Upcoming earnings dates and dividend schedule
+(yff/fetch-calendar "AAPL")
+;; => {:earnings {:earningsDate [{:raw 1777582800 :fmt "2026-04-30"}]
+;;                :earningsCallDate [{:raw 1769724000 :fmt "2026-01-29"}]
+;;                :isEarningsDateEstimate false
+;;                :earningsAverage {:raw 1.95403 :fmt "1.95"}
+;;                :earningsHigh {:raw 2.16 :fmt "2.16"}
+;;                :earningsLow {:raw 1.85 :fmt "1.85"}
+;;                :revenueAverage {:raw 109083851330 :fmt "109.08B"} ...}
+;;     :exDividendDate {:raw 1770595200 :fmt "2026-02-09"}
+;;     :dividendDate   {:raw 1770854400 :fmt "2026-02-12"}}
+
+;; Quick access to just the next earnings date string
+(-> (yff/fetch-calendar "AAPL") :earnings :earningsDate first :fmt)
+;; => "2026-04-30"
 
 ;; Raw module access
 (yff/fetch-quotesummary* "AAPL" "assetProfile,earningsTrend")
