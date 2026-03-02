@@ -8,10 +8,10 @@ The library has two tiers. The **stable core** covers prices, historical OHLCV, 
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.4"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.5"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.4"]
+[com.github.clojure-finance/clj-yfinance "0.1.5"]
 ```
 
 **Requires JDK 11+** (uses `java.net.http.HttpClient`). The only runtime dependency is [charred](https://github.com/cnuernber/charred) for JSON parsing.

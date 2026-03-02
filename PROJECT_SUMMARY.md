@@ -469,14 +469,14 @@ clojure -M:nrepl          # connects on port 7888
 
 ## Publishing
 
-**Published on Clojars** as `com.github.clojure-finance/clj-yfinance 0.1.4`.
+**Published on Clojars** as `com.github.clojure-finance/clj-yfinance 0.1.5`.
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.4"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.5"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.4"]
+[com.github.clojure-finance/clj-yfinance "0.1.5"]
 ```
 
 **GitHub repository:** https://github.com/clojure-finance/clj-yfinance

@@ -1,4 +1,4 @@
-(defproject com.github.clojure-finance/clj-yfinance "0.1.4"
+(defproject com.github.clojure-finance/clj-yfinance "0.1.5"
   :description "Pure Clojure Yahoo Finance client"
   :url "https://github.com/clojure-finance/clj-yfinance"
   :license {:name "EPL-2.0"
