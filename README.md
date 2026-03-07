@@ -1,5 +1,7 @@
 # clj-yfinance
 
+[![Clojars Project](https://img.shields.io/clojars/v/com.github.clojure-finance/clj-yfinance.svg)](https://clojars.org/com.github.clojure-finance/clj-yfinance)
+
 A pure Clojure client for Yahoo Finance — prices, historical OHLCV, dividends, splits, fundamentals, financial statements, analyst estimates, options chains, and more.
 
 No Python bridge. No API key. No external HTTP dependencies. Just Clojure and the `java.net.http.HttpClient` that ships with JDK 11+.
