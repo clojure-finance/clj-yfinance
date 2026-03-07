@@ -41,10 +41,10 @@ No Python bridge. No API key. No external HTTP dependencies. Just Clojure and th
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.5"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.6"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.5"]
+[com.github.clojure-finance/clj-yfinance "0.1.6"]
 ```
 
 Requires **JDK 11+**. The only runtime dependency is [charred](https://github.com/cnuernber/charred) for JSON parsing. All other integrations (datasets, Parquet, DuckDB, Kindly) are opt-in via aliases.
