@@ -56,6 +56,12 @@ The library is organised into two tiers:
 | `project.clj` | Leiningen project file |
 | `build.clj` | Build & deploy tasks (`jar`, `deploy`, `clean`) via tools.build + deps-deploy |
 
+### CI
+
+| Path | Purpose |
+|---|---|
+| `.github/workflows/ci.yml` | GitHub Actions: runs core, auth, fundamentals, and options tests on push/PR to `main` using `DeLaGuardo/setup-clojure@13.4` and Java 21 |
+
 ### Tests
 
 | Path | Assertions | Notes |
