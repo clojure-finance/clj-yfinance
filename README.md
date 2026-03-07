@@ -1,7 +1,7 @@
 # clj-yfinance
 
 [![Clojars Project](https://img.shields.io/clojars/v/com.github.clojure-finance/clj-yfinance.svg)](https://clojars.org/com.github.clojure-finance/clj-yfinance)
-[![cljdoc badge](https://cljdoc.org/badge/com.github.clojure-finance/clj-yfinance)](https://cljdoc.org/d/com.github.clojure-finance/clj-yfinance)
+[![cljdoc badge](https://cljdoc.org/badge/com.github.clojure-finance/clj-yfinance?bustCache=1)](https://cljdoc.org/d/com.github.clojure-finance/clj-yfinance)
 [![License](https://img.shields.io/badge/License-EPL%202.0-blue.svg)](https://opensource.org/licenses/EPL-2.0)
 
 A pure Clojure client for Yahoo Finance — prices, historical OHLCV, dividends, splits, fundamentals, financial statements, analyst estimates, options chains, and more.
