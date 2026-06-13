@@ -394,6 +394,8 @@ DuckDB requires a native shared library (`libduckdb`). On Linux: `apt install li
 (yf-db/close! db)
 ```
 
+`query` returns a dataset whose column names are keywords (e.g. `:ticker`, `:avg_close`), consistent with the rest of clj-yfinance — so `(ds/column result :avg_close)` works directly.
+
 Start your REPL with `clojure -M:duckdb:nrepl`.
 
 ### Using with Noj

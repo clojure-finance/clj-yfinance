@@ -117,11 +117,18 @@
 (defn query
   "Run a SQL query against the database and return a dataset.
 
+   Result column names are returned as keywords, consistent with the
+   keyword-keyed datasets produced elsewhere in clj-yfinance (DuckDB itself
+   reports them as strings).
+
    Example:
    (query db \"SELECT * FROM AAPL ORDER BY timestamp DESC LIMIT 10\")
    (query db \"SELECT ticker, AVG(close) AS avg_close FROM prices GROUP BY ticker ORDER BY avg_close DESC\")"
   [{:keys [conn]} sql]
-  (duckdb/sql->dataset conn sql))
+  (let [result (duckdb/sql->dataset conn sql)]
+    (ds/rename-columns result
+                       (into {} (map (juxt identity keyword))
+                             (ds/column-names result)))))
 
 (defn run!
   "Run a SQL statement ignoring the result. Useful for DDL or DML statements.
