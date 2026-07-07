@@ -32,3 +32,6 @@ dev/nrepl.log
 # OS
 .DS_Store
 Thumbs.db
+
+# Internal developer notes
+PROJECT_SUMMARY.md
