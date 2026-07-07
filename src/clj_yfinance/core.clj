@@ -131,18 +131,22 @@
      :interval  - 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo (default 1d)
      :start     - Epoch seconds (integer) or Instant (overrides :period)
      :end       - Epoch seconds (integer) or Instant (requires :start; defaults to now)
-     :adjusted  - Include adjusted close (default true)
-     :prepost   - Include pre/post market data (default false)
-   
+     :adjusted    - Include adjusted close (default true)
+     :auto-adjust - Back-adjust :open/:high/:low/:close by the adjclose/close ratio,
+                    like python-yfinance's auto_adjust=true, so the whole OHLC series
+                    is adjusted for dividends as well as splits (default false).
+                    Rows missing adjclose are left unadjusted. Implies :adjusted.
+     :prepost     - Include pre/post market data (default false)
+
    Validation behavior:
-     - Invalid values (period/interval not in allowed sets, :end without :start, start > end) 
+     - Invalid values (period/interval not in allowed sets, :end without :start, start > end)
        are rejected immediately with :invalid-opts error
      - Valid but incompatible combinations (e.g., 1m interval with 1mo period exceeding 7-day limit)
        generate warnings in :warnings key but don't fail—Yahoo's API will reject truly invalid requests
-   
+
    Note: For dividend/split events, use fetch-dividends-splits* instead."
-  [ticker & {:keys [period interval start end adjusted prepost]
-             :or {period "1y" interval "1d" adjusted true prepost false}}]
+  [ticker & {:keys [period interval start end adjusted auto-adjust prepost]
+             :or {period "1y" interval "1d" adjusted true auto-adjust false prepost false}}]
   (let [validation-result (validation/validate-opts {:period period :interval interval :start start :end end})]
     (if-not (:ok? validation-result)
       validation-result
@@ -151,7 +155,7 @@
                                            :period period
                                            :start start
                                            :end end
-                                           :adjusted adjusted
+                                           :adjusted (or adjusted auto-adjust)
                                            :prepost prepost})]
           (if-not (:ok? result)
             result
@@ -182,10 +186,12 @@
                 :else
                 (assoc result :data
                        (mapv (fn [t o h l c v a]
-                               (cond-> {:timestamp t
-                                        :open o :high h :low l :close c
-                                        :volume v}
-                                 (and adjusted a) (assoc :adj-close a)))
+                               (let [factor (when (and auto-adjust a c (pos? c)) (/ a c))
+                                     scale (fn [x] (if (and x factor) (* x factor) x))]
+                                 (cond-> {:timestamp t
+                                          :open (scale o) :high (scale h) :low (scale l) :close (scale c)
+                                          :volume v}
+                                   (and (or adjusted auto-adjust) a) (assoc :adj-close a))))
                              times
                              (:open quotes)
                              (:high quotes)
@@ -204,16 +210,20 @@
      :interval  - 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo (default 1d)
      :start     - Epoch seconds (integer) or Instant (overrides :period)
      :end       - Epoch seconds (integer) or Instant (requires :start; defaults to now)
-     :adjusted  - Include adjusted close (default true)
-     :prepost   - Include pre/post market data (default false)
-   
+     :adjusted    - Include adjusted close (default true)
+     :auto-adjust - Back-adjust :open/:high/:low/:close by the adjclose/close ratio,
+                    like python-yfinance's auto_adjust=true, so the whole OHLC series
+                    is adjusted for dividends as well as splits (default false).
+                    Rows missing adjclose are left unadjusted. Implies :adjusted.
+     :prepost     - Include pre/post market data (default false)
+
    Note: For dividend/split events, use fetch-dividends-splits instead."
-  [ticker & {:keys [period interval start end adjusted prepost]
-             :or {period "1y" interval "1d" adjusted true prepost false}}]
+  [ticker & {:keys [period interval start end adjusted auto-adjust prepost]
+             :or {period "1y" interval "1d" adjusted true auto-adjust false prepost false}}]
   (let [result (fetch-historical* ticker
                                   :period period :interval interval
                                   :start start :end end
-                                  :adjusted adjusted :prepost prepost)]
+                                  :adjusted adjusted :auto-adjust auto-adjust :prepost prepost)]
     (if (:ok? result)
       (:data result)
       [])))
@@ -255,6 +265,44 @@
     (if (:ok? result)
       (:data result)
       {:dividends {} :splits {}})))
+
+(defn cumulative-split-factor
+  "Compute the cumulative split factor for a position entered at `since`.
+
+   `splits` is the :splits map as returned by fetch-dividends-splits, i.e.
+   {:1778160600 {:date 1778160600 :numerator 5.0 :denominator 1.0 :splitRatio \"5:1\"} ...}.
+   `since` (and optional `until`) are epoch seconds or java.time.Instant.
+
+   Multiplies numerator/denominator over all splits with :date strictly after
+   `since` (and at or before `until`, when given). A position entered before a
+   5:1 split yields 5.0: the share count has been multiplied by 5, and the
+   per-share entry price divided by 5, relative to today's (split-adjusted)
+   quotes. Returns 1.0 when no splits apply.
+
+   Note: split :date timestamps mark the market open of the effective date, so
+   trades executed ON the effective date (already in post-split units) are
+   correctly excluded as long as `since` is at or after that timestamp — when
+   working with date-granularity trade data, pass the END of the trade day."
+  ([splits since] (cumulative-split-factor splits since nil))
+  ([splits since until]
+   (let [since-epoch (parse/->epoch since)
+         until-epoch (parse/->epoch until)]
+     (->> (vals splits)
+          (filter #(> (:date %) since-epoch))
+          (filter #(or (nil? until-epoch) (<= (:date %) until-epoch)))
+          (map #(/ (double (:numerator %)) (double (:denominator %))))
+          (reduce * 1.0)))))
+
+(defn fetch-split-factor
+  "Fetch split events for `ticker` and return the cumulative split factor for a
+   position entered at `since` (epoch seconds or java.time.Instant). See
+   cumulative-split-factor for the exact semantics. Returns 1.0 when no splits
+   apply or when the fetch fails.
+
+   Options:
+     :period - lookback window for split events (default \"max\")"
+  [ticker since & {:keys [period] :or {period "max"}}]
+  (cumulative-split-factor (:splits (fetch-dividends-splits ticker :period period)) since))
 
 (defn fetch-info*
   "Fetch basic ticker information and metadata. Returns structured result {:ok? true :data {...}} or {:ok? false :error {...}}.
@@ -330,6 +378,12 @@
                     :prepost true)
 
   (fetch-dividends-splits "AAPL" :period "10y")
+
+  ;; OHLC back-adjusted for dividends and splits, like python-yfinance auto_adjust=True
+  (take 2 (fetch-historical "AAPL" :period "1mo" :auto-adjust true))
+
+  ;; How many post-split shares does one share bought on 2024-06-01 correspond to?
+  (fetch-split-factor "NVDA" (java.time.Instant/parse "2024-06-01T23:59:59Z"))
 
   (fetch-dividends-splits "MSFT"
                           :start (.minus (java.time.Instant/now) (java.time.Duration/ofDays 365))

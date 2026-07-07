@@ -126,6 +126,7 @@ All stable functions live in `clj-yfinance.core`. Every function has two flavour
 | `:interval` | `1m` `2m` `5m` `15m` `30m` `60m` `90m` `1h` `1d` `5d` `1wk` `1mo` `3mo` |
 | `:start` / `:end` | epoch seconds (integer) or `java.time.Instant`; `:start` overrides `:period` |
 | `:adjusted` | include adjusted close (default `true`) |
+| `:auto-adjust` | back-adjust `:open`/`:high`/`:low`/`:close` by the adjclose/close ratio, like python-yfinance's `auto_adjust=True` (default `false`) |
 | `:prepost` | include pre/post market data (default `false`) |
 
 Invalid parameter combinations are caught before any network call and returned as `:invalid-opts` errors. Technically valid but potentially problematic combinations (e.g. `1m` interval over a 30-day range) produce a warning in the `:warnings` key of the verbose response.
@@ -139,6 +140,23 @@ Invalid parameter combinations are caught before any network call and returned a
 ```
 
 Accepts the same `:period`, `:start`, `:end` options as `fetch-historical`. Default period is `"5y"`.
+
+#### Split factors
+
+Yahoo back-adjusts all historical quotes for splits, so share counts recorded before a split no longer match the price series. `cumulative-split-factor` (pure) and `fetch-split-factor` (fetching) compute the factor by which such a position's share count must be multiplied (and its per-share cost basis divided) to be consistent with today's quotes:
+
+```clojure
+;; One NVDA share bought before the 2024-06-10 10:1 split is 10 shares today
+(yf/fetch-split-factor "NVDA" (Instant/parse "2024-06-01T23:59:59Z"))
+;; => 10.0
+
+;; Pure variant, reusing already-fetched events
+(let [{:keys [splits]} (yf/fetch-dividends-splits "NVDA" :period "max")]
+  (yf/cumulative-split-factor splits (Instant/parse "2024-06-01T23:59:59Z")))
+;; => 10.0
+```
+
+Splits dated exactly at the `since` timestamp are excluded (trades on the effective date are already in post-split units); with date-granularity trade data, pass the end of the trade day.
 
 ### Ticker Info
 

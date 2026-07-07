@@ -249,5 +249,35 @@
   (testing "Success results are not retryable"
     (is (not (#'http/retryable? {:ok? true :data {:price 100}})))))
 
+(deftest test-cumulative-split-factor
+  (let [splits {:1778160600 {:date 1778160600 :numerator 5.0 :denominator 1.0 :splitRatio "5:1"}
+                :1500000000 {:date 1500000000 :numerator 2.0 :denominator 1.0 :splitRatio "2:1"}}]
+    (testing "Position entered before all splits accumulates every factor"
+      (is (= 10.0 (yf/cumulative-split-factor splits 1400000000))))
+
+    (testing "Position entered between splits only picks up later splits"
+      (is (= 5.0 (yf/cumulative-split-factor splits 1600000000))))
+
+    (testing "Split at exactly `since` is excluded (same-day trades are post-split)"
+      (is (= 1.0 (yf/cumulative-split-factor splits 1778160600))))
+
+    (testing "Position entered after all splits is unaffected"
+      (is (= 1.0 (yf/cumulative-split-factor splits 1800000000))))
+
+    (testing "`until` bounds the window inclusively"
+      (is (= 2.0 (yf/cumulative-split-factor splits 1400000000 1500000000)))
+      (is (= 1.0 (yf/cumulative-split-factor splits 1400000000 1499999999))))
+
+    (testing "Accepts java.time.Instant"
+      (is (= 10.0 (yf/cumulative-split-factor splits (Instant/ofEpochSecond 1400000000)))))
+
+    (testing "Empty splits map yields identity factor"
+      (is (= 1.0 (yf/cumulative-split-factor {} 1400000000))))
+
+    (testing "Reverse splits shrink the factor"
+      (is (= 0.1 (yf/cumulative-split-factor
+                  {:1600000000 {:date 1600000000 :numerator 1.0 :denominator 10.0 :splitRatio "1:10"}}
+                  1400000000))))))
+
 (defn run-tests []
   (clojure.test/run-tests 'clj-yfinance.core-test))

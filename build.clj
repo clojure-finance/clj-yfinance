@@ -4,7 +4,7 @@
             [clojure.string :as str]))
 
 (def lib 'com.github.clojure-finance/clj-yfinance)
-(def version "0.1.6")
+(def version "0.1.7")
 (def class-dir "target/classes")
 (def jar-file (format "target/%s-%s.jar" (name lib) version))
 (def basis (delay (b/create-basis {:project "deps.edn"})))
@@ -53,6 +53,12 @@
   (b/jar {:class-dir class-dir :jar-file jar-file})
   (b/copy-file {:src (str class-dir "/META-INF/maven/com.github.clojure-finance/clj-yfinance/pom.xml")
                 :target "pom.xml"}))
+
+(defn install [_]
+  (jar nil)
+  (dd/deploy {:installer :local
+              :artifact jar-file
+              :pom-dir (str class-dir "/META-INF/maven/com.github.clojure-finance/clj-yfinance")}))
 
 (defn deploy [_]
   (jar nil)
