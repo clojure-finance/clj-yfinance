@@ -43,8 +43,8 @@
                       :tag (str "v" version)}
                 :pom-data [[:licenses
                             [:license
-                             [:name "Eclipse Public License 2.0"]
-                             [:url "https://www.eclipse.org/legal/epl-2.0/"]
+                             [:name "Apache License 2.0"]
+                             [:url "https://www.apache.org/licenses/LICENSE-2.0"]
                              [:distribution "repo"]]]]})
   (let [pom-path (str class-dir "/META-INF/maven/com.github.clojure-finance/clj-yfinance/pom.xml")
         pom-xml (slurp pom-path)]
