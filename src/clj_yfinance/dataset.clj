@@ -1,8 +1,7 @@
 (ns clj-yfinance.dataset
   "Optional dataset conversion functions for integration with the Clojure data science ecosystem.
    
-   REQUIRES: Add tech.v3.dataset to your deps.edn:
-   {:deps {tech.v3.dataset/tech.v3.dataset {:mvn/version \"8.003\"}}}
+   REQUIRES: techascent/tech.ml.dataset on the classpath.
    
    WORKS AUTOMATICALLY WITH:
    - tech.v3.dataset (direct support - columnar data structure)

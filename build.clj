@@ -1,19 +1,25 @@
 (ns build
   (:require [clojure.tools.build.api :as b]
             [deps-deploy.deps-deploy :as dd]
+            [clojure.edn :as edn]
             [clojure.string :as str]))
 
 (def lib 'com.github.clojure-finance/clj-yfinance)
-(def version "0.1.7")
+(def version "0.1.8")
 (def class-dir "target/classes")
 (def jar-file (format "target/%s-%s.jar" (name lib) version))
 (def basis (delay (b/create-basis {:project "deps.edn"})))
 
 (def provided-deps
-  [["techascent" "tech.ml.dataset" "7.032"]
-   ["org.scicloj" "kindly" "4-beta23"]
-   ["com.techascent" "tmd-parquet" "1.000-beta-39"]
-   ["com.techascent" "tmducken" "0.10.1-01"]])
+  "Optional-integration libraries, declared with provided scope in the POM so
+   cljdoc can analyse the optional namespaces. Versions come from the
+   corresponding deps.edn aliases — the single place they are pinned."
+  (let [aliases (:aliases (edn/read-string (slurp "deps.edn")))]
+    (->> [:dataset :kindly :parquet :duckdb]
+         (mapcat #(get-in aliases [% :extra-deps]))
+         (into {})
+         (map (fn [[lib {:keys [mvn/version]}]]
+                [(namespace lib) (name lib) version])))))
 
 (defn- provided-dep-xml [[group-id artifact-id version]]
   (format "    <dependency>\n      <groupId>%s</groupId>\n      <artifactId>%s</artifactId>\n      <version>%s</version>\n      <scope>provided</scope>\n    </dependency>"

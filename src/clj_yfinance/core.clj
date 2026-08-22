@@ -7,11 +7,10 @@
    - Historical OHLCV data with full customization
    - Dividends and stock splits
    - Basic ticker information and metadata
-   
-   Note: Financial statements, options data, and comprehensive fundamentals
-   require Yahoo's authenticated endpoints which are currently blocked.
-   For these features, consider using AlphaVantage, Financial Modeling Prep,
-   or other dedicated financial data APIs."
+
+   All of the above use Yahoo's public chart endpoint. Fundamentals, financial
+   statements, analyst data and options chains live in the
+   clj-yfinance.experimental.* namespaces (authenticated endpoints)."
   (:require [clj-yfinance.http :as http]
             [clj-yfinance.parse :as parse]
             [clj-yfinance.validation :as validation])
@@ -27,10 +26,11 @@
      :start     - Start timestamp (Unix epoch or Instant)
      :end       - End timestamp (Unix epoch or Instant)
      :events    - Event types (e.g., 'div|split')
-     :adjusted  - Include adjusted close (default true)
-     :prepost   - Include pre/post market (default false)"
-  [ticker {:keys [interval period start end events adjusted prepost]
-           :or {adjusted true prepost false}}]
+     :prepost   - Include pre/post market (default false)
+
+   Yahoo's adjclose series is always requested."
+  [ticker {:keys [interval period start end events prepost]
+           :or {prepost false}}]
   (let [warnings (if interval
                    (validation/interval-range-warnings {:interval interval :period period :start start :end end})
                    [])
@@ -38,7 +38,7 @@
                  interval (assoc :interval interval)
                  true (merge (validation/chart-time-params {:period period :start start :end end}))
                  events (assoc :events events)
-                 adjusted (assoc :includeAdjustedClose "true")
+                 true (assoc :includeAdjustedClose "true")
                  prepost (assoc :includePrePost "true"))
         query (parse/build-query params)
         result (http/try-fetch* ticker query)]
@@ -131,12 +131,16 @@
      :interval  - 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo (default 1d)
      :start     - Epoch seconds (integer) or Instant (overrides :period)
      :end       - Epoch seconds (integer) or Instant (requires :start; defaults to now)
-     :adjusted    - Include adjusted close (default true)
      :auto-adjust - Back-adjust :open/:high/:low/:close by the adjclose/close ratio,
-                    like python-yfinance's auto_adjust=true, so the whole OHLC series
-                    is adjusted for dividends as well as splits (default false).
-                    Rows missing adjclose are left unadjusted. Implies :adjusted.
+                    like python-yfinance's auto_adjust=True, so the whole OHLC series
+                    is adjusted for dividends as well as splits (default true).
+                    Rows missing adjclose are left unadjusted.
      :prepost     - Include pre/post market data (default false)
+
+   Each row is {:timestamp :open :high :low :close :volume :adj-close}. :adj-close
+   is Yahoo's dividend- and split-adjusted close and is always included when Yahoo
+   provides it; with :auto-adjust true it equals :close by construction. Pass
+   :auto-adjust false to get Yahoo's raw (split-adjusted only) OHLC alongside it.
 
    Validation behavior:
      - Invalid values (period/interval not in allowed sets, :end without :start, start > end)
@@ -145,8 +149,8 @@
        generate warnings in :warnings key but don't fail—Yahoo's API will reject truly invalid requests
 
    Note: For dividend/split events, use fetch-dividends-splits* instead."
-  [ticker & {:keys [period interval start end adjusted auto-adjust prepost]
-             :or {period "1y" interval "1d" adjusted true auto-adjust false prepost false}}]
+  [ticker & {:keys [period interval start end auto-adjust prepost]
+             :or {period "1y" interval "1d" auto-adjust true prepost false}}]
   (let [validation-result (validation/validate-opts {:period period :interval interval :start start :end end})]
     (if-not (:ok? validation-result)
       validation-result
@@ -155,14 +159,12 @@
                                            :period period
                                            :start start
                                            :end end
-                                           :adjusted (or adjusted auto-adjust)
                                            :prepost prepost})]
           (if-not (:ok? result)
             result
             (let [data (:data result)
                   times (:timestamp data)
-                  quotes (-> data :indicators :quote first)
-                  adj (-> data :indicators :adjclose first :adjclose)]
+                  quotes (-> data :indicators :quote first)]
               (cond
                 (not times)
                 (assoc result :ok? false
@@ -185,45 +187,19 @@
 
                 :else
                 (assoc result :data
-                       (mapv (fn [t o h l c v a]
-                               (let [factor (when (and auto-adjust a c (pos? c)) (/ a c))
-                                     scale (fn [x] (if (and x factor) (* x factor) x))]
-                                 (cond-> {:timestamp t
-                                          :open (scale o) :high (scale h) :low (scale l) :close (scale c)
-                                          :volume v}
-                                   (and (or adjusted auto-adjust) a) (assoc :adj-close a))))
-                             times
-                             (:open quotes)
-                             (:high quotes)
-                             (:low quotes)
-                             (:close quotes)
-                             (:volume quotes)
-                             (or adj (repeat nil))))))))
+                       (parse/chart->rows data {:auto-adjust auto-adjust}))))))
         (catch Exception e
           (parse/err {:type :exception :ticker ticker :message (.getMessage e)}))))))
 
 (defn fetch-historical
   "Fetch historical OHLCV data for a ticker. Returns vector of maps, empty on failure.
-   
-   Options:
-     :period    - 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max (default 1y)
-     :interval  - 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo (default 1d)
-     :start     - Epoch seconds (integer) or Instant (overrides :period)
-     :end       - Epoch seconds (integer) or Instant (requires :start; defaults to now)
-     :adjusted    - Include adjusted close (default true)
-     :auto-adjust - Back-adjust :open/:high/:low/:close by the adjclose/close ratio,
-                    like python-yfinance's auto_adjust=true, so the whole OHLC series
-                    is adjusted for dividends as well as splits (default false).
-                    Rows missing adjclose are left unadjusted. Implies :adjusted.
-     :prepost     - Include pre/post market data (default false)
-
-   Note: For dividend/split events, use fetch-dividends-splits instead."
-  [ticker & {:keys [period interval start end adjusted auto-adjust prepost]
-             :or {period "1y" interval "1d" adjusted true auto-adjust false prepost false}}]
+   Options as for fetch-historical*."
+  [ticker & {:keys [period interval start end auto-adjust prepost]
+             :or {period "1y" interval "1d" auto-adjust true prepost false}}]
   (let [result (fetch-historical* ticker
                                   :period period :interval interval
                                   :start start :end end
-                                  :adjusted adjusted :auto-adjust auto-adjust :prepost prepost)]
+                                  :auto-adjust auto-adjust :prepost prepost)]
     (if (:ok? result)
       (:data result)
       [])))
@@ -314,12 +290,9 @@
    - :regular-market-day-high, :regular-market-day-low
    - :fifty-two-week-high, :fifty-two-week-low
    - :timezone, :gmt-offset
-   
-   Note: This is basic info from the chart endpoint. For comprehensive
-   company info (P/E ratio, market cap, EPS, sector, industry, description),
-   Yahoo's quoteSummary endpoint is required but currently blocked by
-   authentication requirements. Consider using AlphaVantage or FMP for
-   comprehensive fundamentals."
+
+   This is basic info from the chart endpoint. For richer company data (sector,
+   description, officers, P/E) see clj-yfinance.experimental.fundamentals."
   [ticker]
   (try
     (let [result (fetch-chart* ticker {:interval "1d" :period "1d"})]
@@ -342,20 +315,7 @@
 
 (defn fetch-info
   "Fetch basic ticker information and metadata. Returns map or nil on failure.
-   
-   Returns a map with available company info including:
-   - :symbol, :long-name, :short-name
-   - :currency, :exchange-name, :instrument-type
-   - :regular-market-price, :regular-market-volume
-   - :regular-market-day-high, :regular-market-day-low
-   - :fifty-two-week-high, :fifty-two-week-low
-   - :timezone, :gmt-offset
-   
-   Note: This is basic info from the chart endpoint. For comprehensive
-   company info (P/E ratio, market cap, EPS, sector, industry, description),
-   Yahoo's quoteSummary endpoint is required but currently blocked by
-   authentication requirements. Consider using AlphaVantage or FMP for
-   comprehensive fundamentals."
+   See fetch-info* for the returned keys."
   [ticker]
   (let [result (fetch-info* ticker)]
     (when (:ok? result)
@@ -379,8 +339,8 @@
 
   (fetch-dividends-splits "AAPL" :period "10y")
 
-  ;; OHLC back-adjusted for dividends and splits, like python-yfinance auto_adjust=True
-  (take 2 (fetch-historical "AAPL" :period "1mo" :auto-adjust true))
+  ;; Raw (unadjusted) OHLC; the default back-adjusts for dividends and splits like python-yfinance auto_adjust=True
+  (take 2 (fetch-historical "AAPL" :period "1mo" :auto-adjust false))
 
   ;; How many post-split shares does one share bought on 2024-06-01 correspond to?
   (fetch-split-factor "NVDA" (java.time.Instant/parse "2024-06-01T23:59:59Z"))

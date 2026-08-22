@@ -42,13 +42,13 @@ No Python bridge. No API key. No external HTTP dependencies. Just Clojure and th
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.7"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.8"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.7"]
+[com.github.clojure-finance/clj-yfinance "0.1.8"]
 ```
 
-Requires **JDK 11+**. The only runtime dependency is [charred](https://github.com/cnuernber/charred) for JSON parsing. All other integrations (datasets, Parquet, DuckDB, Kindly) are opt-in via aliases.
+Requires **JDK 11+**. The only runtime dependency is [charred](https://github.com/cnuernber/charred) for JSON parsing. All other integrations (datasets, Parquet, DuckDB, Kindly) are optional — add their libraries to your deps only if you use them.
 
 ---
 
@@ -68,7 +68,7 @@ Requires **JDK 11+**. The only runtime dependency is [charred](https://github.co
 ;; Daily bars for the past year
 (yf/fetch-historical "AAPL" :period "1y")
 ;; => [{:timestamp 1704067200, :open 185.2, :high 186.1, :low 184.0,
-;;      :close 185.5, :volume 12345678, :adj-close 184.9} ...]
+;;      :close 185.5, :volume 12345678, :adj-close 185.5} ...]
 
 ;; As a typed dataset
 (require '[clj-yfinance.dataset :as yfd])
@@ -125,9 +125,10 @@ All stable functions live in `clj-yfinance.core`. Every function has two flavour
 | `:period` | `1d` `5d` `1mo` `3mo` `6mo` `1y` `2y` `5y` `10y` `ytd` `max` |
 | `:interval` | `1m` `2m` `5m` `15m` `30m` `60m` `90m` `1h` `1d` `5d` `1wk` `1mo` `3mo` |
 | `:start` / `:end` | epoch seconds (integer) or `java.time.Instant`; `:start` overrides `:period` |
-| `:adjusted` | include adjusted close (default `true`) |
-| `:auto-adjust` | back-adjust `:open`/`:high`/`:low`/`:close` by the adjclose/close ratio, like python-yfinance's `auto_adjust=True` (default `false`) |
+| `:auto-adjust` | back-adjust `:open`/`:high`/`:low`/`:close` by the adjclose/close ratio, like python-yfinance's `auto_adjust=True` (default `true`; pass `:auto-adjust false` for Yahoo's raw, split-adjusted-only OHLC) |
 | `:prepost` | include pre/post market data (default `false`) |
+
+Each row is `{:timestamp :open :high :low :close :volume :adj-close}`. `:adj-close` is Yahoo's dividend- and split-adjusted close and is always included when available — under the default `:auto-adjust true` it equals `:close` by construction; with `:auto-adjust false` it is the only dividend-adjusted figure in the row. Unlike python-yfinance, the column is never dropped, so datasets, Parquet files and DuckDB tables always have the same shape.
 
 Invalid parameter combinations are caught before any network call and returned as `:invalid-opts` errors. Technically valid but potentially problematic combinations (e.g. `1m` interval over a 30-day range) produce a warning in the `:warnings` key of the verbose response.
 
@@ -191,7 +192,7 @@ The verbose API provides structured errors with enough context for intelligent r
       nil)))
 ```
 
-**Error types:** `:rate-limited` · `:http-error` · `:api-error` · `:parse-error` · `:connection-error` · `:missing-price` · `:missing-data` · `:missing-metadata` · `:no-data` · `:invalid-opts` · `:timeout` · `:execution-error` · `:interrupted` · `:exception`
+See [Error Types Reference](#error-types-reference) for the full list.
 
 ---
 
@@ -290,12 +291,7 @@ Each contract includes: `:contractSymbol` `:strike` `:bid` `:ask` `:lastPrice` `
 
 ### Dataset (tech.ml.dataset)
 
-Add `tech.ml.dataset` as a dependency and use `clj-yfinance.dataset`:
-
-```clojure
-;; deps.edn
-{:deps {techascent/tech.ml.dataset {:mvn/version "7.032"}}}
-```
+Add `techascent/tech.ml.dataset` to your deps and use `clj-yfinance.dataset`:
 
 ```clojure
 (require '[clj-yfinance.dataset :as yfd])
@@ -336,11 +332,7 @@ For datasets too large to fit in memory, [Clojask](https://github.com/clojure-fi
 
 For auto-rendering as interactive tables in [Clay](https://github.com/scicloj/clay) or [Portal](https://github.com/djblue/portal), use the `clj-yfinance.kindly` namespace. Same API as `clj-yfinance.dataset`, but output is tagged with `kind/dataset`.
 
-```clojure
-;; deps.edn alias (already in the project)
-{:aliases {:kindly {:extra-deps {org.scicloj/kindly {:mvn/version "4-beta23"}
-                                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
-```
+Requires `org.scicloj/kindly` and `techascent/tech.ml.dataset`.
 
 ```clojure
 (require '[clj-yfinance.kindly :as yfk])
@@ -356,11 +348,7 @@ For auto-rendering as interactive tables in [Clay](https://github.com/scicloj/cl
 
 Columnar archiving of financial datasets:
 
-```clojure
-;; deps.edn alias (already in the project)
-{:aliases {:parquet {:extra-deps {com.techascent/tmd-parquet {:mvn/version "1.000-beta-39"}
-                                  techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
-```
+Requires `com.techascent/tmd-parquet` and `techascent/tech.ml.dataset`.
 
 ```clojure
 (require '[clj-yfinance.parquet :as yfp])
@@ -377,19 +365,11 @@ Columnar archiving of financial datasets:
 (yfp/save-dataset! my-enriched-ds "enriched.parquet")
 ```
 
-Start your REPL with `clojure -M:parquet:nrepl`.
-
 ### DuckDB
 
 Run SQL queries over financial datasets using an embedded [DuckDB](https://duckdb.org/) database:
 
-```clojure
-;; deps.edn alias (already in the project)
-{:aliases {:duckdb {:extra-deps {com.techascent/tmducken {:mvn/version "0.10.1-01"}
-                                 techascent/tech.ml.dataset {:mvn/version "7.032"}}}}}
-```
-
-DuckDB requires a native shared library (`libduckdb`). On Linux: `apt install libduckdb-dev`; on macOS: `brew install duckdb`. Alternatively, set `DUCKDB_HOME` to the directory containing the library.
+Requires `com.techascent/tmducken` and `techascent/tech.ml.dataset`. DuckDB also requires a native shared library (`libduckdb`). On Linux: `apt install libduckdb-dev`; on macOS: `brew install duckdb`. Alternatively, set `DUCKDB_HOME` to the directory containing the library.
 
 ```clojure
 (require '[clj-yfinance.duckdb :as yf-db])
@@ -414,15 +394,9 @@ DuckDB requires a native shared library (`libduckdb`). On Linux: `apt install li
 
 `query` returns a dataset whose column names are keywords (e.g. `:ticker`, `:avg_close`), consistent with the rest of clj-yfinance — so `(ds/column result :avg_close)` works directly.
 
-Start your REPL with `clojure -M:duckdb:nrepl`.
-
 ### Using with Noj
 
-[Noj](https://github.com/scicloj/noj) is the Scicloj batteries-included data science toolkit — tablecloth, tableplot, fastmath, Clay, and more in a single tested dependency. clj-yfinance serves as the data acquisition layer.
-
-```bash
-clojure -M:noj:nrepl
-```
+[Noj](https://github.com/scicloj/noj) is the Scicloj batteries-included data science toolkit — tablecloth, tableplot, fastmath, Clay, and more in a single tested dependency. clj-yfinance serves as the data acquisition layer. Add `org.scicloj/noj` alongside clj-yfinance in your deps.
 
 ```clojure
 (require '[clj-yfinance.core    :as yf])
@@ -478,7 +452,7 @@ The `examples/finance_demo.clj` notebook demonstrates the full pipeline — fetc
 
 ### Running
 
-Start a REPL with the `:clay` alias and evaluate in your editor:
+From a clone of this repository, start a REPL with the `:clay` alias (which bundles Clay, tablecloth, tableplot and tech.ml.dataset) and evaluate the file in your editor:
 
 ```bash
 clojure -M:clay:nrepl
@@ -513,43 +487,6 @@ To render the entire notebook to a static HTML file:
 
 ---
 
-## Development
-
-### Running Tests
-
-All tests are pure — no network calls. They cover URL encoding, validation, JSON parsing, retry behaviour, key normalisation, and dataset conversions.
-
-```bash
-# Core
-clojure -M:test -e "(require 'clj-yfinance.core-test) (clj-yfinance.core-test/run-tests)"
-
-# Experimental auth
-clojure -M:test -e "(require 'clj-yfinance.experimental.auth-test) (clj-yfinance.experimental.auth-test/run-tests)"
-
-# Experimental fundamentals
-clojure -M:test -e "(require 'clj-yfinance.experimental.fundamentals-test) (clj-yfinance.experimental.fundamentals-test/run-tests)"
-
-# Experimental options
-clojure -M:test -e "(require 'clj-yfinance.experimental.options-test) (clj-yfinance.experimental.options-test/run-tests)"
-
-# Dataset (requires tech.ml.dataset)
-clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (clj-yfinance.dataset-test/run-tests)"
-
-# Parquet (requires tmd-parquet + tech.ml.dataset)
-clojure -M:test:parquet -e "(require 'clj-yfinance.parquet-test) (clj-yfinance.parquet-test/run-tests)"
-
-# DuckDB (requires tmducken + tech.ml.dataset + native libduckdb)
-clojure -M:test:duckdb -e "(require 'clj-yfinance.duckdb-test) (clj-yfinance.duckdb-test/run-tests)"
-```
-
-### REPL
-
-```bash
-clojure -M:nrepl   # starts nREPL on port 7888
-```
-
----
-
 ## Caveats
 
 - **No built-in caching** — every call hits the network. Add `core.memoize` or similar at the application level.
@@ -569,6 +506,10 @@ For reference, commercial providers worth knowing about (no affiliation; pricing
 - **[Marketstack](https://marketstack.com/)** — Free tier (100 req/mo); from ~$9.99/mo. 500k+ tickers, 15+ years historical.
 - **[Twelve Data](https://twelvedata.com/)** — Stocks, forex, crypto, ETFs; 100k+ symbols.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE). (Artifacts through 0.1.7 were published under EPL-2.0; the switch applies from the next published version onward.)
+Apache-2.0 — see [LICENSE](LICENSE). Artifacts up to and including 0.1.7 were published under EPL-2.0.

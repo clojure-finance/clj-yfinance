@@ -32,13 +32,16 @@ jobs:
           restore-keys: ${{ runner.os }}-m2-
 
       - name: Run core tests
-        run: clojure -M:test -e "(require 'clj-yfinance.core-test) (clj-yfinance.core-test/run-tests)"
+        run: clojure -M:test -e "(require 'clj-yfinance.core-test) (System/exit (if (clojure.test/successful? (clj-yfinance.core-test/run-tests)) 0 1))"
 
       - name: Run auth tests
-        run: clojure -M:test -e "(require 'clj-yfinance.experimental.auth-test) (clj-yfinance.experimental.auth-test/run-tests)"
+        run: clojure -M:test -e "(require 'clj-yfinance.experimental.auth-test) (System/exit (if (clojure.test/successful? (clj-yfinance.experimental.auth-test/run-tests)) 0 1))"
 
       - name: Run fundamentals tests
-        run: clojure -M:test -e "(require 'clj-yfinance.experimental.fundamentals-test) (clj-yfinance.experimental.fundamentals-test/run-tests)"
+        run: clojure -M:test -e "(require 'clj-yfinance.experimental.fundamentals-test) (System/exit (if (clojure.test/successful? (clj-yfinance.experimental.fundamentals-test/run-tests)) 0 1))"
 
       - name: Run options tests
-        run: clojure -M:test -e "(require 'clj-yfinance.experimental.options-test) (clj-yfinance.experimental.options-test/run-tests)"
+        run: clojure -M:test -e "(require 'clj-yfinance.experimental.options-test) (System/exit (if (clojure.test/successful? (clj-yfinance.experimental.options-test/run-tests)) 0 1))"
+
+      - name: Run dataset tests
+        run: clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (System/exit (if (clojure.test/successful? (clj-yfinance.dataset-test/run-tests)) 0 1))"

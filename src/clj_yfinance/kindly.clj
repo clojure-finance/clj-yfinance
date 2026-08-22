@@ -2,11 +2,7 @@
   "Optional Kindly-tagged dataset functions for auto-rendering in Clay, Portal,
    and any Kindly-aware tool.
 
-   REQUIRES: Add to your deps.edn aliases:
-   {:kindly {:extra-deps {org.scicloj/kindly {:mvn/version \"4-beta23\"}
-                          techascent/tech.ml.dataset {:mvn/version \"7.032\"}}}}
-
-   Then start your REPL with: clojure -M:kindly:nrepl
+   REQUIRES: org.scicloj/kindly and techascent/tech.ml.dataset on the classpath.
 
    USAGE:
    (require '[clj-yfinance.kindly :as yfk])

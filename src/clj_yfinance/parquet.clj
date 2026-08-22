@@ -1,11 +1,7 @@
 (ns clj-yfinance.parquet
   "Optional Parquet save/load functions for clj-yfinance datasets.
 
-   REQUIRES: Add to your deps.edn aliases:
-   {:parquet {:extra-deps {com.techascent/tmd-parquet {:mvn/version \"1.000-beta-39\"}
-                           techascent/tech.ml.dataset {:mvn/version \"7.032\"}}}}
-
-   Then start your REPL with: clojure -M:parquet:nrepl
+   REQUIRES: com.techascent/tmd-parquet and techascent/tech.ml.dataset on the classpath.
 
    USAGE:
    (require '[clj-yfinance.parquet :as yfp])
@@ -31,7 +27,7 @@
    Returns the dataset on success, nil if fetch fails or data is empty.
 
    Options are passed through to fetch-historical:
-   :period, :interval, :start, :end, :adjusted, :prepost
+   :period, :interval, :start, :end, :auto-adjust, :prepost
 
    Examples:
    (save-historical! \"AAPL\" \"aapl.parquet\" :period \"5y\")
@@ -48,7 +44,7 @@
    Returns the combined dataset on success, nil if all fetches fail.
 
    Options are passed through to fetch-historical:
-   :period, :interval, :start, :end, :adjusted, :prepost
+   :period, :interval, :start, :end, :auto-adjust, :prepost
 
    Examples:
    (save-multi-ticker! [\"AAPL\" \"GOOGL\" \"MSFT\"] \"tech.parquet\" :period \"1y\")

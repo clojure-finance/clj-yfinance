@@ -279,5 +279,46 @@
                   {:1600000000 {:date 1600000000 :numerator 1.0 :denominator 10.0 :splitRatio "1:10"}}
                   1400000000))))))
 
+(deftest test-chart->rows
+  (let [chart {:timestamp [1 2 3]
+               :indicators {:quote [{:open [10.0 20.0 30.0] :high [11.0 22.0 33.0]
+                                     :low [9.0 18.0 27.0] :close [10.0 20.0 30.0]
+                                     :volume [100 200 300]}]
+                            :adjclose [{:adjclose [5.0 nil 30.0]}]}}]
+    (testing "auto-adjust scales OHLC by adjclose/close and keeps :adj-close"
+      (let [[r1 r2 r3] (parse/chart->rows chart {:auto-adjust true})]
+        (is (= {:timestamp 1 :open 5.0 :high 5.5 :low 4.5 :close 5.0 :volume 100 :adj-close 5.0} r1))
+        (is (= {:timestamp 2 :open 20.0 :high 22.0 :low 18.0 :close 20.0 :volume 200} r2)
+            "row without adjclose is left unadjusted and has no :adj-close")
+        (is (= {:timestamp 3 :open 30.0 :high 33.0 :low 27.0 :close 30.0 :volume 300 :adj-close 30.0} r3))))
+
+    (testing "auto-adjust false leaves OHLC raw and still includes :adj-close where present"
+      (is (= [{:timestamp 1 :open 10.0 :high 11.0 :low 9.0 :close 10.0 :volume 100 :adj-close 5.0}
+              {:timestamp 2 :open 20.0 :high 22.0 :low 18.0 :close 20.0 :volume 200}
+              {:timestamp 3 :open 30.0 :high 33.0 :low 27.0 :close 30.0 :volume 300 :adj-close 30.0}]
+             (parse/chart->rows chart {:auto-adjust false}))))
+
+    (testing "missing adjclose series yields raw rows without :adj-close"
+      (is (= [{:timestamp 1 :open 10.0 :high 11.0 :low 9.0 :close 10.0 :volume 100}]
+             (parse/chart->rows (-> chart
+                                    (assoc :timestamp [1])
+                                    (update-in [:indicators :quote 0] #(into {} (map (fn [[k v]] [k [(first v)]]) %)))
+                                    (update :indicators dissoc :adjclose))
+                                {:auto-adjust true}))))
+
+    (testing "non-positive close is not used as a divisor"
+      (is (= [{:timestamp 1 :open 1.0 :high 1.0 :low 1.0 :close 0.0 :volume 1 :adj-close 2.0}]
+             (parse/chart->rows {:timestamp [1]
+                                 :indicators {:quote [{:open [1.0] :high [1.0] :low [1.0] :close [0.0] :volume [1]}]
+                                              :adjclose [{:adjclose [2.0]}]}}
+                                {:auto-adjust true}))))
+
+    (testing "nil OHLC values pass through"
+      (is (= [{:timestamp 1 :open nil :high nil :low nil :close 5.0 :volume nil :adj-close 5.0}]
+             (parse/chart->rows {:timestamp [1]
+                                 :indicators {:quote [{:open [nil] :high [nil] :low [nil] :close [10.0] :volume [nil]}]
+                                              :adjclose [{:adjclose [5.0]}]}}
+                                {:auto-adjust true}))))))
+
 (defn run-tests []
   (clojure.test/run-tests 'clj-yfinance.core-test))

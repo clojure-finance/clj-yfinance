@@ -57,6 +57,30 @@
     (catch Exception ex
       (err {:type :parse-error :message (.getMessage ex)}))))
 
+(defn chart->rows
+  "Build OHLCV row maps from a chart result's :timestamp and :indicators.
+   Pure function for testing.
+
+   When `auto-adjust` is true, :open/:high/:low/:close are scaled by the
+   adjclose/close ratio of each row, so the whole OHLC series is adjusted for
+   dividends as well as splits (python-yfinance's auto_adjust=True). Rows whose
+   adjclose is missing, or whose close is not positive, are left unadjusted.
+   :adj-close is included whenever the row has an adjclose value (so under
+   auto-adjust it equals :close)."
+  [{:keys [timestamp indicators]} {:keys [auto-adjust]}]
+  (let [quotes (-> indicators :quote first)
+        adj (or (-> indicators :adjclose first :adjclose) (repeat nil))]
+    (mapv (fn [t o h l c v a]
+            (let [factor (when (and auto-adjust a c (pos? c)) (/ a c))
+                  scale (fn [x] (if (and x factor) (* x factor) x))]
+              (cond-> {:timestamp t
+                       :open (scale o) :high (scale h) :low (scale l) :close (scale c)
+                       :volume v}
+                a (assoc :adj-close a))))
+          timestamp
+          (:open quotes) (:high quotes) (:low quotes) (:close quotes) (:volume quotes)
+          adj)))
+
 (def ^:private key-exceptions
   {"gmtoffset" "gmt-offset"})
 

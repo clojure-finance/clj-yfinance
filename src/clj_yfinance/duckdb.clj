@@ -4,15 +4,11 @@
    Loads datasets fetched via clj-yfinance into an embedded DuckDB instance
    and lets you query them with SQL.
 
-   REQUIRES: Add to your deps.edn aliases:
-   {:duckdb {:extra-deps {com.techascent/tmducken {:mvn/version \"0.10.1-01\"}
-                          techascent/tech.ml.dataset {:mvn/version \"7.032\"}}}}
+   REQUIRES: com.techascent/tmducken and techascent/tech.ml.dataset on the classpath.
 
    DuckDB also requires a native shared library (libduckdb). On Linux you can
    install it via your package manager, or set the DUCKDB_HOME environment
    variable to the directory containing the library before starting your REPL.
-
-   Then start your REPL with: clojure -M:duckdb:nrepl
 
    USAGE:
    (require '[clj-yfinance.duckdb :as yf-db])
@@ -81,7 +77,7 @@
 
    The table name defaults to the ticker symbol (e.g. \"AAPL\").
    Options are passed through to fetch-historical:
-   :period, :interval, :start, :end, :adjusted, :prepost
+   :period, :interval, :start, :end, :auto-adjust, :prepost
 
    Returns the number of rows inserted, or nil if fetch fails.
 
@@ -100,7 +96,7 @@
    defaulting to \"prices\".
 
    Options are passed through to fetch-historical:
-   :period, :interval, :start, :end, :adjusted, :prepost
+   :period, :interval, :start, :end, :auto-adjust, :prepost
 
    Returns the number of rows inserted, or nil if all fetches fail.
 
