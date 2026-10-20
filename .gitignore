@@ -13,12 +13,7 @@ pom.xml
 .clj-kondo/.cache/
 .clojure-mcp/
 
-# Leiningen
-.lein-*
-lib/
-
 # Logs and temp
-dev/nrepl.log
 *.log
 *.backup
 
