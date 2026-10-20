@@ -54,6 +54,14 @@
     (parquet/ds->parquet ds path)
     ds))
 
+(defn load-dataset
+  "Load any Parquet file and return a dataset. Column names are keywordized on load.
+
+   Example:
+   (load-dataset \"prices.parquet\")"
+  [path]
+  (keywordize-columns (parquet/parquet->ds path)))
+
 (defn load-historical
   "Load a Parquet file saved by save-historical! and return a dataset.
 
@@ -63,15 +71,7 @@
    Example:
    (load-historical \"aapl.parquet\")"
   [path]
-  (keywordize-columns (parquet/parquet->ds path)))
-
-(defn load-dataset
-  "Load any Parquet file and return a dataset. Column names are keywordized on load.
-
-   Example:
-   (load-dataset \"prices.parquet\")"
-  [path]
-  (keywordize-columns (parquet/parquet->ds path)))
+  (load-dataset path))
 
 (defn save-dataset!
   "Save an arbitrary tech.v3.dataset to a Parquet file.

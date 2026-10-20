@@ -15,14 +15,15 @@
    - incomeStatementHistory   - Annual/quarterly income statements
    - balanceSheetHistory      - Annual/quarterly balance sheets
    - cashflowStatementHistory - Annual/quarterly cash flow statements
+   - calendarEvents           - Upcoming earnings and dividend dates
 
    WARNING: This is experimental and may break at any time. Yahoo can change
    or block authentication without notice.
 
    For production use, consider stable alternatives:
-   - AlphaVantage (free tier, good fundamentals)
+   - Alpha Vantage (free tier, good fundamentals)
    - Financial Modeling Prep (comprehensive)
-   - Polygon.io (professional-grade)
+   - Massive, formerly Polygon.io (professional-grade)
 
    Implementation notes:
    - Returns ALL fields from Yahoo (no filtering)
@@ -42,17 +43,13 @@
    :status status
    :yahoo-error yahoo-error
    :suggestion (or suggestion
-                   "If this persists, Yahoo may be blocking requests. Consider using AlphaVantage or Financial Modeling Prep.")})
+                   "If this persists, Yahoo may be blocking requests. Consider using Alpha Vantage or Financial Modeling Prep.")})
 
-(defn- build-quotesummary-url [ticker modules]
-  (let [session (auth/get-session)
-        crumb (:crumb session)]
-    (when-not crumb
-      (throw (ex-info "No crumb available" {:type :no-crumb})))
-    (str base-url "/"
-         (java.net.URLEncoder/encode ticker "UTF-8")
-         "?crumb=" (java.net.URLEncoder/encode crumb "UTF-8")
-         "&modules=" modules)))
+(defn- quotesummary-url [ticker modules crumb]
+  (str base-url "/"
+       (java.net.URLEncoder/encode ticker "UTF-8")
+       "?crumb=" (java.net.URLEncoder/encode crumb "UTF-8")
+       "&modules=" modules))
 
 (defn- parse-quotesummary-response [response ticker]
   (let [status (.statusCode response)
@@ -143,8 +140,7 @@
               :financialData {:currentPrice {:raw 255.78 :fmt \"255.78\"} ...}}}"
   [ticker modules]
   (try
-    (let [url (build-quotesummary-url ticker modules)
-          result (auth/authenticated-request url)]
+    (let [result (auth/authenticated-request #(quotesummary-url ticker modules %))]
       (if (:ok? result)
         (parse-quotesummary-response (:response result) ticker)
         {:ok? false
@@ -316,7 +312,7 @@
    - Cash flow:        :netIncome, :endDate only (other fields blocked by Yahoo)
 
    For comprehensive financial statements, consider Financial Modeling Prep
-   or AlphaVantage as stable alternatives.
+   or Alpha Vantage as stable alternatives.
 
    Annual :data keys:
    - :incomeStatementHistory    - {:incomeStatementHistory [<4 annual periods>]}

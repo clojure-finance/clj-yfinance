@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `clj-yfinance.dataset/dividends-splits->dataset` (and the Kindly variant)
+  threw on real Yahoo data: event maps are keyed by keywordized epoch strings
+  (`:1699574400`), which were used as the timestamp. Timestamps now come from
+  each event's `:date`, and rows are sorted by date. Split
+  `:numerator`/`:denominator` columns are now `float64`, matching Yahoo's
+  values.
+- Experimental quoteSummary functions (`fetch-fundamentals`, `fetch-financials`,
+  …) retried a 401 with the stale crumb still in the URL, so the retry could
+  not succeed. `auth/authenticated-request` now also accepts the URL as a
+  function of the crumb and rebuilds it after the refresh; options use the same
+  path.
+- `clj-yfinance.kindly` functions returned `[nil]` instead of `nil` when there
+  was no data.
+- `auth/session-info` `:age-minutes` is a double instead of a ratio; the
+  crumb value is no longer printed.
+- `clj-yfinance.duckdb/run!` no longer triggers a "replacing clojure.core/run!"
+  warning on load.
+- Demo notebook (`examples/finance_demo.clj`) runs end to end again: chart
+  titles go through `plotly/base` (current tableplot's `plot` takes one
+  argument), and the normalised-performance chart and ticker-info table no
+  longer throw.
+
 ## 0.1.8 — 2026-08-22
 
 ### Breaking

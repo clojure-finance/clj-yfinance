@@ -9,8 +9,8 @@
    or block authentication without notice.
 
    For production use, consider stable alternatives:
-   - AlphaVantage (free tier, options data available)
-   - Polygon.io (professional-grade, comprehensive options)
+   - Alpha Vantage (free tier, options data available)
+   - Massive, formerly Polygon.io (professional-grade, comprehensive options)
    - Tradier (options-focused API)
 
    Implementation notes:
@@ -32,17 +32,13 @@
    :ticker ticker
    :status status
    :suggestion (or suggestion
-                   "If this persists, Yahoo may be blocking requests. Consider using Polygon.io or AlphaVantage.")})
+                   "If this persists, Yahoo may be blocking requests. Consider using Massive (formerly Polygon.io) or Alpha Vantage.")})
 
-(defn- build-options-url [ticker expiration]
-  (let [session (auth/get-session)
-        crumb (:crumb session)]
-    (when-not crumb
-      (throw (ex-info "No crumb available" {:type :no-crumb})))
-    (cond-> (str base-url "/"
-                 (java.net.URLEncoder/encode ticker "UTF-8")
-                 "?crumb=" (java.net.URLEncoder/encode crumb "UTF-8"))
-      expiration (str "&date=" expiration))))
+(defn- options-url [ticker expiration crumb]
+  (cond-> (str base-url "/"
+               (java.net.URLEncoder/encode ticker "UTF-8")
+               "?crumb=" (java.net.URLEncoder/encode crumb "UTF-8"))
+    expiration (str "&date=" expiration)))
 
 (defn- parse-options-response [response ticker]
   (let [status (.statusCode response)
@@ -168,17 +164,10 @@
        :data {:calls [<31 contracts>] :puts [<32 contracts>] ...}}"
   [ticker & {:keys [expiration]}]
   (try
-    (let [do-request (fn []
-                       (let [url (build-options-url ticker expiration)
-                             result (auth/authenticated-request url :retry-on-401? false)]
-                         (if (:ok? result)
-                           (parse-options-response (:response result) ticker)
-                           {:ok? false :error (assoc (:error result) :ticker ticker)})))
-          first-result (do-request)]
-      (if (= :auth-failed (-> first-result :error :type))
-        (do (auth/force-refresh!)
-            (do-request))
-        first-result))
+    (let [result (auth/authenticated-request #(options-url ticker expiration %))]
+      (if (:ok? result)
+        (parse-options-response (:response result) ticker)
+        {:ok? false :error (assoc (:error result) :ticker ticker)}))
     (catch Exception e
       {:ok? false
        :error (err :exception

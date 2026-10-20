@@ -10,9 +10,9 @@
    - Detect automated access
    
    For production use, consider stable alternatives:
-   - AlphaVantage: https://www.alphavantage.co/
-   - Financial Modeling Prep: https://financialmodelingprep.com/
-   - Polygon.io: https://polygon.io/
+   - Alpha Vantage: https://www.alphavantage.co/
+   - Financial Modeling Prep: https://site.financialmodelingprep.com/
+   - Massive (formerly Polygon.io): https://massive.com/
    
    Implementation notes:
    - Uses singleton session (thread-unsafe, single-user)
@@ -104,7 +104,7 @@
     (log (str "Crumb request completed in " elapsed "ms (status: " status ")"))
     (if (= 200 status)
       (do
-        (log (str "Crumb obtained: " body))
+        (log "Crumb obtained")
         body)
       (throw (ex-info "Failed to fetch crumb"
                       {:type :crumb-fetch-failed
@@ -159,7 +159,9 @@
   (let [current @session-state]
     (if (session-expired? current)
       (do
-        (log (str "Session expired (age: " (/ (session-age-ms current) 60000) " minutes), refreshing..."))
+        (log (if (:created-at current)
+               (format "Session expired (age: %.1f minutes), refreshing..." (/ (session-age-ms current) 60000.0))
+               "No active session, initializing..."))
         (refresh-session!))
       current)))
 
@@ -173,11 +175,13 @@
 
 (defn authenticated-request
   "Make an authenticated HTTP request to Yahoo Finance.
-   
+
    Parameters:
-   - url: Full URL string
+   - url: Full URL string, or a function of the session crumb returning the
+          URL. Pass a function when the URL embeds the crumb, so the retry
+          after a 401 uses the refreshed crumb.
    - retry-on-401?: If true, will attempt ONE session refresh on 401 error
-   
+
    Returns:
    {:ok? true :response <HttpResponse>} or
    {:ok? false :error {...}}"
@@ -189,7 +193,7 @@
                :message "Session initialization failed"
                :exception (:error session)}}
       (try
-        (let [request (build-request url)
+        (let [request (build-request (if (fn? url) (url (:crumb session)) url))
               response (send-request (:http-client session) request)
               status (.statusCode response)]
           (if (and (= 401 status) retry-on-401?)
@@ -220,6 +224,6 @@
   (let [session @session-state]
     {:status (:status session)
      :age-minutes (if (:created-at session)
-                    (/ (session-age-ms session) 60000)
+                    (/ (session-age-ms session) 60000.0)
                     nil)
      :crumb-present? (some? (:crumb session))}))

@@ -43,7 +43,15 @@ aapl
 
 ;; ## 3. Tablecloth Transformations
 ;;
-;; Add a daily log-return column and a 20-day rolling volatility column.
+;; Add a daily log-return column and a calendar-date column (used by all the
+;; charts below).
+
+(defn add-date
+  "Add a :date column (ISO date string, UTC) derived from :timestamp."
+  [ds]
+  (tc/add-column ds :date (fn [ds]
+                            (map #(str (java.time.LocalDate/ofEpochDay (quot % 86400)))
+                                 (ds :timestamp)))))
 
 (defn log-returns [ds]
   (let [c (-> ds (tc/order-by [:timestamp]) (tc/column :close))]
@@ -54,10 +62,7 @@ aapl
       (tc/order-by [:timestamp])
       (tc/drop-rows 0)
       (tc/add-column :log-return (log-returns aapl))
-      (tc/add-column :date (fn [ds]
-                             (map (fn [ts]
-                                    (.toString (java.time.LocalDate/ofEpochDay (quot ts 86400))))
-                                  (ds :timestamp))))))
+      add-date))
 
 (tc/select-columns aapl-enriched [:date :close :log-return])
 
@@ -75,41 +80,34 @@ aapl
 ;; Plot closing prices for all tickers over time.
 
 (-> multi-ds
-    (tc/add-column :date (fn [ds]
-                           (map (fn [ts]
-                                  (.toString (java.time.LocalDate/ofEpochDay (quot ts 86400))))
-                                (ds :timestamp))))
+    add-date
+    (plotly/base {:=title "Closing Prices — 1 Year"})
     (plotly/layer-line {:=x :date
                         :=y :close
                         :=color :ticker
-                        :=mark-size 1})
-    (plotly/plot {:=title "Closing Prices — 1 Year"}))
+                        :=mark-size 1}))
 
 ;; ## 6. Normalised Performance Chart
 ;;
 ;; Normalise each ticker to 100 at the start of the period for comparison.
 
-(defn normalise [ds]
-  (let [first-close (first (-> ds (tc/order-by [:timestamp]) (tc/column :close)))]
-    (tc/add-column ds :indexed-close
-                   (dfn/* (dfn// (ds :close) first-close) 100.0))))
-
 (def normalised-ds
   (-> multi-ds
+      (tc/order-by [:ticker :timestamp])
       (tc/group-by [:ticker])
-      (tc/add-column :date (fn [ds]
-                             (map (fn [ts]
-                                    (.toString (java.time.LocalDate/ofEpochDay (quot ts 86400))))
-                                  (ds :timestamp))))
-      normalise
-      tc/ungroup))
+      (tc/add-column :indexed-close
+                     (fn [ds]
+                       (let [c (ds :close)]
+                         (dfn/* (dfn// c (first c)) 100.0))))
+      tc/ungroup
+      add-date))
 
 (-> normalised-ds
+    (plotly/base {:=title "Normalised Performance (base = 100)"})
     (plotly/layer-line {:=x :date
                         :=y :indexed-close
                         :=color :ticker
-                        :=mark-size 1})
-    (plotly/plot {:=title "Normalised Performance (base = 100)"}))
+                        :=mark-size 1}))
 
 ;; ## 7. Log-Returns Chart
 ;;
@@ -124,20 +122,16 @@ aapl
                        (let [c (tc/column ds :close)]
                          (into [0.0]
                                (map (fn [a b] (Math/log (/ b a))) c (rest c))))))
-      (tc/add-column :date
-                     (fn [ds]
-                       (map (fn [ts]
-                              (.toString (java.time.LocalDate/ofEpochDay (quot ts 86400))))
-                            (tc/column ds :timestamp))))
-      tc/ungroup))
+      tc/ungroup
+      add-date))
 
 (-> multi-enriched
     (tc/drop-rows (fn [row] (zero? (:log-return row))))
+    (plotly/base {:=title "Daily Log-Returns"})
     (plotly/layer-line {:=x :date
                         :=y :log-return
                         :=color :ticker
-                        :=mark-size 1})
-    (plotly/plot {:=title "Daily Log-Returns"}))
+                        :=mark-size 1}))
 
 ;; ## 8. 20-Day Rolling Volatility
 ;;
@@ -166,11 +160,11 @@ aapl
       (tc/drop-missing [:vol20])))
 
 (-> volatility-ds
+    (plotly/base {:=title "20-Day Rolling Volatility (Annualised)"})
     (plotly/layer-line {:=x :date
                         :=y :vol20
                         :=color :ticker
-                        :=mark-size 1})
-    (plotly/plot {:=title "20-Day Rolling Volatility (Annualised)"}))
+                        :=mark-size 1}))
 
 ;; ## 9. Returns Distribution
 ;;
@@ -178,9 +172,9 @@ aapl
 
 (-> multi-enriched
     (tc/drop-rows (fn [row] (zero? (:log-return row))))
+    (plotly/base {:=title "Distribution of Daily Log-Returns"})
     (plotly/layer-density {:=x :log-return
-                           :=color :ticker})
-    (plotly/plot {:=title "Distribution of Daily Log-Returns"}))
+                           :=color :ticker}))
 
 ;; ## 10. Dividends & Splits
 ;;
@@ -189,10 +183,7 @@ aapl
 (def aapl-divs
   (-> (yfd/dividends-splits->dataset "AAPL" :period "10y")
       :dividends
-      (tc/add-column :date (fn [ds]
-                             (map (fn [ts]
-                                    (.toString (java.time.LocalDate/ofEpochDay (quot ts 86400))))
-                                  (ds :timestamp))))))
+      add-date))
 
 aapl-divs
 
@@ -201,12 +192,10 @@ aapl-divs
 ;; Fetch metadata for all tickers and display as a comparison table.
 
 (def info-ds
-  (->> tickers
-       (map (comp yfd/info->dataset))
-       (apply ds/concat-copying)
-       (tc/select-columns [:symbol :long-name :regular-market-price
-                           :fifty-two-week-high :fifty-two-week-low
-                           :regular-market-volume])))
+  (-> (apply ds/concat-copying (map yfd/info->dataset tickers))
+      (tc/select-columns [:symbol :long-name :regular-market-price
+                          :fifty-two-week-high :fifty-two-week-low
+                          :regular-market-volume])))
 
 info-ds
 

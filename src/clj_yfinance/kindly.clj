@@ -13,35 +13,42 @@
    (yfk/prices->dataset (yf/fetch-prices [\"AAPL\" \"GOOGL\" \"MSFT\"]))
    (yfk/multi-ticker->dataset [\"AAPL\" \"GOOGL\" \"MSFT\"] :period \"1y\")
    (yfk/dividends-splits->dataset \"AAPL\" :period \"10y\")
-   (yfk/info->dataset \"AAPL\")"
+   (yfk/info->dataset \"AAPL\")
+
+   Like clj-yfinance.dataset, every function returns nil when there is no data."
   (:require [clj-yfinance.dataset :as yfd]
             [scicloj.kindly.v4.kind :as kind]))
+
+(defn- tag
+  "Tag a dataset with kind/dataset, passing nil through (kind/dataset would
+   wrap it as [nil])."
+  [dataset]
+  (some-> dataset kind/dataset))
 
 (defn historical->dataset
   "Like clj-yfinance.dataset/historical->dataset but tagged with kind/dataset
    for auto-rendering in Kindly-aware tools."
   [ticker & opts]
-  (kind/dataset (apply yfd/historical->dataset ticker opts)))
+  (tag (apply yfd/historical->dataset ticker opts)))
 
 (defn prices->dataset
   "Like clj-yfinance.dataset/prices->dataset but tagged with kind/dataset."
   [prices-map]
-  (kind/dataset (yfd/prices->dataset prices-map)))
+  (tag (yfd/prices->dataset prices-map)))
 
 (defn multi-ticker->dataset
   "Like clj-yfinance.dataset/multi-ticker->dataset but tagged with kind/dataset."
   [tickers & opts]
-  (kind/dataset (apply yfd/multi-ticker->dataset tickers opts)))
+  (tag (apply yfd/multi-ticker->dataset tickers opts)))
 
 (defn dividends-splits->dataset
-  "Like clj-yfinance.dataset/dividends-splits->dataset but returns both datasets
+  "Like clj-yfinance.dataset/dividends-splits->dataset but with each dataset
    tagged with kind/dataset."
   [ticker & opts]
-  (let [result (apply yfd/dividends-splits->dataset ticker opts)]
-    {:dividends (kind/dataset (:dividends result))
-     :splits (kind/dataset (:splits result))}))
+  (some->> (apply yfd/dividends-splits->dataset ticker opts)
+           (into {} (map (fn [[k dataset]] [k (tag dataset)])))))
 
 (defn info->dataset
   "Like clj-yfinance.dataset/info->dataset but tagged with kind/dataset."
   [ticker]
-  (kind/dataset (yfd/info->dataset ticker)))
+  (tag (yfd/info->dataset ticker)))

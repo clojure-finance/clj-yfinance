@@ -136,11 +136,11 @@ Invalid parameter combinations are caught before any network call and returned a
 
 ```clojure
 (yf/fetch-dividends-splits "AAPL" :period "10y")
-;; => {:dividends {1699574400 {:amount 0.24 :date 1699574400} ...}
-;;     :splits    {1598832000 {:numerator 4 :denominator 1 ...} ...}}
+;; => {:dividends {:1699574400 {:amount 0.24 :date 1699574400} ...}
+;;     :splits    {:1598832000 {:date 1598832000 :numerator 4.0 :denominator 1.0 :splitRatio "4:1"} ...}}
 ```
 
-Accepts the same `:period`, `:start`, `:end` options as `fetch-historical`. Default period is `"5y"`.
+Events are keyed by their epoch-second date as a keyword (Yahoo's JSON object keys); use each event's `:date` for the number. Accepts the same `:period`, `:start`, `:end` options as `fetch-historical`. Default period is `"5y"`.
 
 #### Split factors
 
@@ -369,7 +369,7 @@ Requires `com.techascent/tmd-parquet` and `techascent/tech.ml.dataset`.
 
 Run SQL queries over financial datasets using an embedded [DuckDB](https://duckdb.org/) database:
 
-Requires `com.techascent/tmducken` and `techascent/tech.ml.dataset`. DuckDB also requires a native shared library (`libduckdb`). On Linux: `apt install libduckdb-dev`; on macOS: `brew install duckdb`. Alternatively, set `DUCKDB_HOME` to the directory containing the library.
+Requires `com.techascent/tmducken` and `techascent/tech.ml.dataset`. DuckDB also requires its native shared library (`libduckdb`, 0.10.1 or later): download it for your platform from the [DuckDB releases](https://github.com/duckdb/duckdb/releases) and set `DUCKDB_HOME` to the directory containing it.
 
 ```clojure
 (require '[clj-yfinance.duckdb :as yf-db])

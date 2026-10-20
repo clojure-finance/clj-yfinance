@@ -2,7 +2,7 @@
   "Tests for Parquet save/load functions.
 
    Run with: clojure -M:test:parquet -e \"(require 'clj-yfinance.parquet-test) (clj-yfinance.parquet-test/run-tests)\""
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [clj-yfinance.parquet :as yfp]
             [tech.v3.dataset :as ds])
   (:import [java.nio.file Files]

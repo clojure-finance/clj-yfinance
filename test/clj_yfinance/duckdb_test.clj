@@ -2,7 +2,7 @@
   "Tests for DuckDB integration functions.
 
    Run with: clojure -M:test:duckdb -e \"(require 'clj-yfinance.duckdb-test) (clj-yfinance.duckdb-test/run-tests)\""
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [clj-yfinance.duckdb :as yf-db]
             [tech.v3.dataset :as ds]))
 

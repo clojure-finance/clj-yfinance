@@ -4,7 +4,7 @@
    Note: These tests do NOT make live network calls to Yahoo Finance.
    They test the internal logic and state management without requiring
    actual authentication."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [clj-yfinance.experimental.auth]))
 
 ;; Test session age calculation
@@ -86,41 +86,37 @@
       (is (contains? info :age-minutes) "Info should contain :age-minutes")
       (is (contains? info :crumb-present?) "Info should contain :crumb-present?"))))
 
-;; Integration-style test (requires manual verification)
-(deftest live-session-initialization-test
-  (testing "Live session initialization (manual verification)"
-    ;; This test actually initializes a session with Yahoo
-    ;; It's commented out by default to avoid hitting Yahoo during normal test runs
-    ;; Uncomment to verify the integration works
+(deftest authenticated-request-401-retry-test
+  (testing "After a 401 the retry rebuilds the URL with the refreshed crumb"
+    (let [session (atom {:status :active :crumb "old" :http-client :mock})
+          urls (atom [])]
+      (with-redefs [clj-yfinance.experimental.auth/get-session (fn [] @session)
+                    clj-yfinance.experimental.auth/refresh-session!
+                    (fn [] (swap! session assoc :crumb "new"))
+                    clj-yfinance.experimental.auth/send-request
+                    (fn [_ request]
+                      (let [url (str (.uri ^java.net.http.HttpRequest request))]
+                        (swap! urls conj url)
+                        (reify java.net.http.HttpResponse
+                          (statusCode [_] (if (.endsWith url "old") 401 200)))))]
+        (let [result (clj-yfinance.experimental.auth/authenticated-request
+                      #(str "https://example.com/x?crumb=" %))]
+          (is (:ok? result))
+          (is (= 200 (.statusCode (:response result))))
+          (is (= ["https://example.com/x?crumb=old" "https://example.com/x?crumb=new"]
+                 @urls))))))
 
-    (comment
-      (let [session (clj-yfinance.experimental.auth/get-session)]
-        (is (= :active (:status session))
-            "Session should be active after initialization")
-        (is (string? (:crumb session))
-            "Session should have a crumb string")
-        (is (some? (:http-client session))
-            "Session should have an HTTP client")
-        (is (some? (:cookie-handler session))
-            "Session should have a cookie handler")
-        (is (number? (:created-at session))
-            "Session should have a creation timestamp")
-
-        ;; Test session info
-        (let [info (clj-yfinance.experimental.auth/session-info)]
-          (is (= :active (:status info)))
-          (is (< (:age-minutes info) 1) ; Less than 1 minute old
-              "Newly created session should be very young")
-          (is (:crumb-present? info)
-              "Session should have crumb present"))))))
-
-;; Test that session state is singleton
-(deftest session-singleton-test
-  (testing "Session is singleton"
-    ;; The session-state atom should be the same instance
-    (is (identical? @#'clj-yfinance.experimental.auth/session-state
-                    @#'clj-yfinance.experimental.auth/session-state)
-        "Session state should be singleton")))
+  (testing "Only one refresh: a second 401 is returned to the caller"
+    (let [refreshes (atom 0)]
+      (with-redefs [clj-yfinance.experimental.auth/get-session
+                    (fn [] {:status :active :crumb "c" :http-client :mock})
+                    clj-yfinance.experimental.auth/refresh-session! (fn [] (swap! refreshes inc))
+                    clj-yfinance.experimental.auth/send-request
+                    (fn [_ _] (reify java.net.http.HttpResponse (statusCode [_] 401)))]
+        (let [result (clj-yfinance.experimental.auth/authenticated-request "https://example.com/x")]
+          (is (= 1 @refreshes))
+          (is (:ok? result))
+          (is (= 401 (.statusCode (:response result)))))))))
 
 ;; Run tests helper
 (defn run-tests []
@@ -130,7 +126,7 @@
   ;; Run all tests
   (run-tests)
 
-  ;; Run individual test
-  (session-age-test)
-  (session-expired-test)
-  (session-info-test))
+  ;; Manual check against live Yahoo (not part of the suite: tests stay offline)
+  (let [session (clj-yfinance.experimental.auth/get-session)]
+    [(:status session) (string? (:crumb session))
+     (clj-yfinance.experimental.auth/session-info)]))

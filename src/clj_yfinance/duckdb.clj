@@ -6,9 +6,10 @@
 
    REQUIRES: com.techascent/tmducken and techascent/tech.ml.dataset on the classpath.
 
-   DuckDB also requires a native shared library (libduckdb). On Linux you can
-   install it via your package manager, or set the DUCKDB_HOME environment
-   variable to the directory containing the library before starting your REPL.
+   DuckDB also requires its native shared library (libduckdb, version 0.10.1 or
+   later). Download it for your platform from
+   https://github.com/duckdb/duckdb/releases and set the DUCKDB_HOME environment
+   variable to the directory containing it before starting your REPL.
 
    USAGE:
    (require '[clj-yfinance.duckdb :as yf-db])
@@ -24,6 +25,7 @@
 
    ;; Close when done
    (yf-db/close! db)"
+  (:refer-clojure :exclude [run!])
   (:require [clj-yfinance.dataset :as yfd]
             [tech.v3.dataset :as ds]
             [tmducken.duckdb :as duckdb]))
@@ -65,7 +67,7 @@
 
    Example:
    (load-dataset! db my-ds :table-name \"prices\")"
-  [{:keys [conn]} dataset & {:keys [table-name] :as opts}]
+  [{:keys [conn]} dataset & {:keys [table-name]}]
   (let [named-ds (if table-name
                    (vary-meta dataset assoc :name table-name)
                    dataset)]
@@ -83,11 +85,9 @@
 
    Example:
    (load-historical! db \"AAPL\" :period \"1y\")"
-  [{:keys [conn]} ticker & opts]
+  [db ticker & opts]
   (when-let [dataset (apply yfd/historical->dataset ticker opts)]
-    (let [named-ds (vary-meta dataset assoc :name ticker)]
-      (duckdb/create-table! conn named-ds)
-      (duckdb/insert-dataset! conn named-ds))))
+    (load-dataset! db dataset :table-name ticker)))
 
 (defn load-multi-ticker!
   "Fetch historical data for multiple tickers and load into DuckDB as a single table.
@@ -103,12 +103,10 @@
    Example:
    (load-multi-ticker! db [\"AAPL\" \"GOOGL\" \"MSFT\"] :period \"1y\")
    (query db \"SELECT ticker, AVG(close) FROM prices GROUP BY ticker\")"
-  [{:keys [conn]} tickers & {:keys [table-name] :or {table-name "prices"} :as opts}]
-  (let [fetch-opts (dissoc opts :table-name)]
-    (when-let [dataset (apply yfd/multi-ticker->dataset tickers (apply concat fetch-opts))]
-      (let [named-ds (vary-meta dataset assoc :name table-name)]
-        (duckdb/create-table! conn named-ds)
-        (duckdb/insert-dataset! conn named-ds)))))
+  [db tickers & {:keys [table-name] :or {table-name "prices"} :as opts}]
+  (when-let [dataset (apply yfd/multi-ticker->dataset tickers
+                            (apply concat (dissoc opts :table-name)))]
+    (load-dataset! db dataset :table-name table-name)))
 
 (defn query
   "Run a SQL query against the database and return a dataset.

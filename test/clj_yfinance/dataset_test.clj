@@ -2,7 +2,7 @@
   "Tests for dataset conversion functions.
    
    Run with: clojure -M:test:dataset -e \"(require 'clj-yfinance.dataset-test) (clj-yfinance.dataset-test/run-tests)\""
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [clj-yfinance.dataset :as yfd]
             [tech.v3.dataset :as ds]))
 
@@ -21,10 +21,12 @@
    "GOOGL" 337.28
    "MSFT" 428.04})
 
+;; Shape as returned by fetch-dividends-splits: charred keywordizes the epoch
+;; keys, so the timestamp must come from :date
 (def sample-dividends-splits
-  {:dividends {1699574400 {:amount 0.24 :date 1699574400}
-               1707235200 {:amount 0.25 :date 1707235200}}
-   :splits {1598832000 {:numerator 4 :denominator 1 :date 1598832000}}})
+  {:dividends {:1707235200 {:amount 0.25 :date 1707235200}
+               :1699574400 {:amount 0.24 :date 1699574400}}
+   :splits {:1598832000 {:numerator 4.0 :denominator 1.0 :date 1598832000 :splitRatio "4:1"}}})
 
 (def sample-info
   {:symbol "AAPL"
@@ -110,21 +112,25 @@
         (is (= :float64 (-> div-ds (ds/column :amount) meta :datatype))
             "Amount should be float64")
         (is (= #{0.24 0.25} (set (ds/column div-ds :amount)))
-            "Should have correct dividend amounts"))
+            "Should have correct dividend amounts")
+        (is (= [1699574400 1707235200] (vec (ds/column div-ds :timestamp)))
+            "Timestamps should come from :date, in date order"))
 
       ;; Check splits dataset
       (let [split-ds (:splits result)]
         (is (= 1 (ds/row-count split-ds)) "Should have 1 split row")
         (is (= [:timestamp :numerator :denominator] (ds/column-names split-ds))
             "Should have timestamp, numerator, and denominator columns")
-        (is (= :int64 (-> split-ds (ds/column :numerator) meta :datatype))
-            "Numerator should be int64")
-        (is (= [4] (vec (ds/column split-ds :numerator)))
-            "Should have correct numerator"))))
+        (is (= :float64 (-> split-ds (ds/column :numerator) meta :datatype))
+            "Numerator should be float64")
+        (is (= [4.0] (vec (ds/column split-ds :numerator)))
+            "Should have correct numerator")
+        (is (= [1598832000] (vec (ds/column split-ds :timestamp)))
+            "Timestamp should come from :date"))))
 
   (testing "Only dividends returns only dividends dataset"
     (let [result (yfd/dividends-splits->dataset
-                  {:dividends {1699574400 {:amount 0.24}}
+                  {:dividends {:1699574400 {:amount 0.24 :date 1699574400}}
                    :splits {}})]
       (is (contains? result :dividends))
       (is (not (contains? result :splits)))))
@@ -132,7 +138,7 @@
   (testing "Only splits returns only splits dataset"
     (let [result (yfd/dividends-splits->dataset
                   {:dividends {}
-                   :splits {1598832000 {:numerator 4 :denominator 1}}})]
+                   :splits {:1598832000 {:numerator 4.0 :denominator 1.0 :date 1598832000}}})]
       (is (not (contains? result :dividends)))
       (is (contains? result :splits))))
 

@@ -3,7 +3,7 @@
 
    These tests do NOT make live network calls to Yahoo Finance.
    They test pure functions using mock HTTP responses and fixtures."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [clj-yfinance.experimental.fundamentals]))
 
 ;; ---------------------------------------------------------------------------
