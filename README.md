@@ -140,7 +140,7 @@ Invalid parameter combinations are caught before any network call and returned a
 ;;     :splits    {:1598832000 {:date 1598832000 :numerator 4.0 :denominator 1.0 :splitRatio "4:1"} ...}}
 ```
 
-Events are keyed by their epoch-second date as a keyword (Yahoo's JSON object keys); use each event's `:date` for the number. Accepts the same `:period`, `:start`, `:end` options as `fetch-historical`. Default period is `"5y"`.
+Events are keyed by a keywordized epoch timestamp (Yahoo's JSON object keys, which need not equal the event date); use each event's `:date` as the event time. Accepts the same `:period`, `:start`, `:end` options as `fetch-historical`. Default period is `"5y"`.
 
 #### Split factors
 

@@ -6,7 +6,8 @@
 
 - `clj-yfinance.dataset/dividends-splits->dataset` (and the Kindly variant)
   threw on real Yahoo data: event maps are keyed by keywordized epoch strings
-  (`:1699574400`), which were used as the timestamp. Timestamps now come from
+  (`:1699574400`, not always equal to the event date), which were used as the
+  timestamp. Timestamps now come from
   each event's `:date`, and rows are sorted by date. Split
   `:numerator`/`:denominator` columns are now `float64`, matching Yahoo's
   values.
