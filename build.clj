@@ -5,7 +5,7 @@
             [clojure.string :as str]))
 
 (def lib 'com.github.clojure-finance/clj-yfinance)
-(def version "0.1.8")
+(def version "0.1.9")
 (def class-dir "target/classes")
 (def jar-file (format "target/%s-%s.jar" (name lib) version))
 (def basis (delay (b/create-basis {:project "deps.edn"})))
