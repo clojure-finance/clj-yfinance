@@ -139,7 +139,7 @@
 
 (defn- iso-instant
   "\"2025-05-01T20:30:00.000Z\" -> Instant, nil when absent or unparseable."
-  [s]
+  ^Instant [s]
   (when (string? s)
     (try (Instant/parse s) (catch Exception _ nil))))
 
@@ -231,7 +231,7 @@
         (loop [offset 0
                rows []
                pages 0]
-          (let [size (min max-page-size (- limit (count rows)))
+          (let [size (long (min max-page-size (- limit (count rows))))
                 result (fetch-page ticker offset size)
                 request {:ticker ticker :limit limit :pages (inc pages)}]
             (if-not (:ok? result)
