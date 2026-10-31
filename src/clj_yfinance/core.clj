@@ -136,22 +136,34 @@
                     is adjusted for dividends as well as splits (default true).
                     Rows missing adjclose are left unadjusted.
      :prepost     - Include pre/post market data (default false)
+     :events      - Also return the dividend and split events of the window, from
+                    the same request (default false)
 
    Each row is {:timestamp :open :high :low :close :volume :adj-close}. :adj-close
    is Yahoo's dividend- and split-adjusted close and is always included when Yahoo
    provides it; with :auto-adjust true it equals :close by construction. Pass
    :auto-adjust false to get Yahoo's raw (split-adjusted only) OHLC alongside it.
 
-   Validation behavior:
-     - Invalid values (period/interval not in allowed sets, :end without :start, start > end)
-       are rejected immediately with :invalid-opts error
-     - Valid but incompatible combinations (e.g., 1m interval with 1mo period exceeding 7-day limit)
-       generate warnings in :warnings key but don't fail—Yahoo's API will reject truly invalid requests
+   Besides :data, a successful result carries :meta, the instrument's identity
+   and exchange fields from the chart response: :symbol :currency :exchange-name
+   :full-exchange-name :instrument-type :first-trade-date :timezone
+   :exchange-timezone-name :gmt-offset :price-hint :long-name :short-name (those
+   Yahoo provides). With :events true it also carries :events
+   {:dividends {...} :splits {...}}, in the shape fetch-dividends-splits returns.
 
-   Note: For dividend/split events, use fetch-dividends-splits* instead."
-  [ticker & {:keys [period interval start end auto-adjust prepost]
-             :or {period "1y" interval "1d" auto-adjust true prepost false}}]
-  (let [validation-result (validation/validate-opts {:period period :interval interval :start start :end end})]
+   Validation behavior:
+     - Invalid values (period/interval not in allowed sets, :end without :start, start > end,
+       non-boolean :events) are rejected immediately with :invalid-opts error
+     - Valid but incompatible combinations (e.g., 1m interval with 1mo period exceeding 7-day limit)
+       generate warnings in :warnings key but don't fail—Yahoo's API will reject truly invalid requests"
+  [ticker & {:keys [period interval start end auto-adjust prepost events]
+             :or {period "1y" interval "1d" auto-adjust true prepost false events false}}]
+  (let [validation-result (if (or (nil? events) (boolean? events))
+                            (validation/validate-opts {:period period :interval interval :start start :end end})
+                            (parse/err {:type :invalid-opts
+                                        :field :events
+                                        :value events
+                                        :message ":events must be true or false (nil counts as false)"}))]
     (if-not (:ok? validation-result)
       validation-result
       (try
@@ -159,6 +171,7 @@
                                            :period period
                                            :start start
                                            :end end
+                                           :events (when events "div|split")
                                            :prepost prepost})]
           (if-not (:ok? result)
             result
@@ -186,8 +199,10 @@
                                :message "Missing required OHLCV fields"})
 
                 :else
-                (assoc result :data
-                       (parse/chart->rows data {:auto-adjust auto-adjust}))))))
+                (cond-> (assoc result
+                               :data (parse/chart->rows data {:auto-adjust auto-adjust})
+                               :meta (parse/chart-meta data))
+                  events (assoc :events (parse/chart-events data)))))))
         (catch Exception e
           (parse/err {:type :exception :ticker ticker :message (.getMessage e)}))))))
 
@@ -223,9 +238,7 @@
                                            :events "div|split"})]
           (if-not (:ok? result)
             result
-            (let [events (-> result :data :events)]
-              (assoc result :data {:dividends (or (:dividends events) {})
-                                   :splits (or (:splits events) {})}))))
+            (assoc result :data (parse/chart-events (:data result)))))
         (catch Exception e
           (parse/err {:type :exception :ticker ticker :message (.getMessage e)}))))))
 

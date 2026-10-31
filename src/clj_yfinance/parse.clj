@@ -98,3 +98,27 @@
   "Convert all keys in map from camelCase to kebab-case."
   [m]
   (into {} (map (fn [[k v]] [(camel->kebab k) v]) m)))
+
+(def ^:private chart-meta-keys
+  [:symbol :currency :exchangeName :fullExchangeName :instrumentType
+   :firstTradeDate :timezone :exchangeTimezoneName :gmtoffset :priceHint
+   :longName :shortName])
+
+(defn chart-meta
+  "Identity and exchange fields of a chart result's :meta, kebab-cased
+   (:exchange-timezone-name, :gmt-offset, :first-trade-date, ...). Fields Yahoo
+   leaves out are absent. Pure function for testing."
+  [chart-result]
+  (-> (:meta chart-result)
+      (select-keys chart-meta-keys)
+      kebabize-keys))
+
+(defn chart-events
+  "Dividend and split events of a chart result (requested with
+   events=div|split), as {:dividends {...} :splits {...}}: Yahoo's maps keyed by
+   keywordized epoch strings, empty when there are none. Pure function for
+   testing."
+  [chart-result]
+  (let [events (:events chart-result)]
+    {:dividends (or (:dividends events) {})
+     :splits (or (:splits events) {})}))

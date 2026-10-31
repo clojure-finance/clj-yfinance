@@ -118,6 +118,79 @@
           (is (:ok? result))
           (is (= 401 (.statusCode (:response result)))))))))
 
+(defn- request-summary [^java.net.http.HttpRequest request]
+  {:method (.method request)
+   :url (str (.uri request))
+   :content-type (.orElse (.firstValue (.headers request) "Content-Type") nil)
+   :content-length (when (.isPresent (.bodyPublisher request))
+                     (.contentLength (.get (.bodyPublisher request))))})
+
+(deftest authenticated-request-post-test
+  (testing "GET stays the default and sends no body or content type"
+    (let [requests (atom [])]
+      (with-redefs [clj-yfinance.experimental.auth/get-session
+                    (fn [] {:status :active :crumb "c" :http-client :mock})
+                    clj-yfinance.experimental.auth/send-request
+                    (fn [_ request]
+                      (swap! requests conj (request-summary request))
+                      (reify java.net.http.HttpResponse (statusCode [_] 200)))]
+        (is (:ok? (clj-yfinance.experimental.auth/authenticated-request "https://example.com/x")))
+        (is (= "GET" (:method (first @requests))))
+        (is (nil? (:content-type (first @requests)))))))
+
+  (testing ":post sends the body with a JSON content type by default"
+    (let [requests (atom [])
+          body "{\"size\":100}"]
+      (with-redefs [clj-yfinance.experimental.auth/get-session
+                    (fn [] {:status :active :crumb "c" :http-client :mock})
+                    clj-yfinance.experimental.auth/send-request
+                    (fn [_ request]
+                      (swap! requests conj (request-summary request))
+                      (reify java.net.http.HttpResponse (statusCode [_] 200)))]
+        (is (:ok? (clj-yfinance.experimental.auth/authenticated-request
+                   #(str "https://example.com/v?crumb=" %) :method :post :body body)))
+        (is (= {:method "POST" :url "https://example.com/v?crumb=c"
+                :content-type "application/json" :content-length (count body)}
+               (first @requests)))
+        (clj-yfinance.experimental.auth/authenticated-request
+         "https://example.com/v" :method :post :body "a=1" :content-type "application/x-www-form-urlencoded")
+        (is (= "application/x-www-form-urlencoded" (:content-type (second @requests)))))))
+
+  (testing "the 401 retry repeats the POST with the refreshed crumb"
+    (let [session (atom {:status :active :crumb "old" :http-client :mock})
+          requests (atom [])]
+      (with-redefs [clj-yfinance.experimental.auth/get-session (fn [] @session)
+                    clj-yfinance.experimental.auth/refresh-session!
+                    (fn [] (swap! session assoc :crumb "new"))
+                    clj-yfinance.experimental.auth/send-request
+                    (fn [_ request]
+                      (let [summary (request-summary request)]
+                        (swap! requests conj summary)
+                        (reify java.net.http.HttpResponse
+                          (statusCode [_] (if (.endsWith ^String (:url summary) "old") 401 200)))))]
+        (let [result (clj-yfinance.experimental.auth/authenticated-request
+                      #(str "https://example.com/v?crumb=" %) :method :post :body "{}")]
+          (is (= 200 (.statusCode (:response result))))
+          (is (= [{:method "POST" :url "https://example.com/v?crumb=old" :content-type "application/json" :content-length 2}
+                  {:method "POST" :url "https://example.com/v?crumb=new" :content-type "application/json" :content-length 2}]
+                 @requests))))))
+
+  (testing "a failing send is :request-failed"
+    (with-redefs [clj-yfinance.experimental.auth/get-session
+                  (fn [] {:status :active :crumb "c" :http-client :mock})
+                  clj-yfinance.experimental.auth/send-request
+                  (fn [_ _] (throw (java.io.IOException. "connection reset")))]
+      (is (= {:type :request-failed :message "connection reset"}
+             (-> (clj-yfinance.experimental.auth/authenticated-request "https://example.com/x" :method :post :body "{}")
+                 :error (select-keys [:type :message]))))))
+
+  (testing "an unknown :method is :invalid-opts, before any session work"
+    (with-redefs [clj-yfinance.experimental.auth/get-session
+                  (fn [] (throw (ex-info "should not be called" {})))]
+      (is (= :invalid-opts
+             (-> (clj-yfinance.experimental.auth/authenticated-request "https://example.com/x" :method :put)
+                 :error :type))))))
+
 ;; Run tests helper
 (defn run-tests []
   (clojure.test/run-tests 'clj-yfinance.experimental.auth-test))

@@ -320,5 +320,84 @@
                                               :adjclose [{:adjclose [5.0]}]}}
                                 {:auto-adjust true}))))))
 
+;; Trimmed from a real AAPL response (range=1mo&interval=1d&events=div|split)
+(def ^:private chart-with-events-json
+  "{\"chart\":{\"result\":[{\"meta\":{\"currency\":\"USD\",\"symbol\":\"AAPL\",\"exchangeName\":\"NMS\",\"fullExchangeName\":\"NasdaqGS\",\"instrumentType\":\"EQUITY\",\"firstTradeDate\":345479400,\"regularMarketTime\":1761854401,\"hasPrePostMarketData\":true,\"gmtoffset\":-14400,\"timezone\":\"EDT\",\"exchangeTimezoneName\":\"America/New_York\",\"regularMarketPrice\":271.4,\"longName\":\"Apple Inc.\",\"shortName\":\"Apple Inc.\",\"priceHint\":2,\"dataGranularity\":\"1d\",\"range\":\"1mo\"},\"timestamp\":[1754919000,1755005400],\"events\":{\"dividends\":{\"1754884800\":{\"amount\":0.26,\"date\":1754884800}},\"splits\":{\"1598880600\":{\"date\":1598880600,\"numerator\":4.0,\"denominator\":1.0,\"splitRatio\":\"4:1\"}}},\"indicators\":{\"quote\":[{\"open\":[227.9,228.0],\"high\":[229.5,230.8],\"low\":[227.0,227.1],\"close\":[227.2,229.6],\"volume\":[61806100,55626200]}],\"adjclose\":[{\"adjclose\":[226.9,229.3]}]}}],\"error\":null}}")
+
+(deftest test-chart-meta-and-events
+  (let [chart (:data (parse/parse-chart-body chart-with-events-json))]
+    (testing "chart-meta keeps identity/exchange fields, kebab-cased"
+      (is (= {:symbol "AAPL" :currency "USD" :exchange-name "NMS" :full-exchange-name "NasdaqGS"
+              :instrument-type "EQUITY" :first-trade-date 345479400 :timezone "EDT"
+              :exchange-timezone-name "America/New_York" :gmt-offset -14400 :price-hint 2
+              :long-name "Apple Inc." :short-name "Apple Inc."}
+             (parse/chart-meta chart))))
+
+    (testing "chart-meta of a result without meta is empty"
+      (is (= {} (parse/chart-meta {}))))
+
+    (testing "chart-events returns Yahoo's keyword-epoch keyed maps"
+      (is (= {:dividends {:1754884800 {:amount 0.26 :date 1754884800}}
+              :splits {:1598880600 {:date 1598880600 :numerator 4.0 :denominator 1.0 :splitRatio "4:1"}}}
+             (parse/chart-events chart))))
+
+    (testing "chart-events without events yields empty maps"
+      (is (= {:dividends {} :splits {}} (parse/chart-events (dissoc chart :events)))))))
+
+(deftest test-fetch-historical-meta-and-events
+  (let [queries (atom [])]
+    (with-redefs [http/try-fetch* (fn [_ query]
+                                    (swap! queries conj query)
+                                    (parse/parse-chart-body chart-with-events-json))]
+      (testing "default: :meta added, no :events, no events request param"
+        (let [result (yf/fetch-historical* "AAPL" :period "1mo")]
+          (is (:ok? result))
+          (is (= 2 (count (:data result))))
+          (is (= "America/New_York" (-> result :meta :exchange-timezone-name)))
+          (is (= -14400 (-> result :meta :gmt-offset)))
+          (is (not (contains? result :events)))
+          (is (not (re-find #"events=" (last @queries))))))
+
+      (testing ":events true requests div|split and returns them in fetch-dividends-splits shape"
+        (let [result (yf/fetch-historical* "AAPL" :period "1mo" :events true)
+              dividends-splits (yf/fetch-dividends-splits* "AAPL" :period "1mo")]
+          (is (:ok? result))
+          (is (re-find #"events=div%7Csplit" (last @queries)))
+          (is (= (:data dividends-splits) (:events result)))
+          (is (= 0.26 (-> result :events :dividends :1754884800 :amount)))))
+
+      (testing ":events nil counts as false"
+        (let [result (yf/fetch-historical* "AAPL" :period "1mo" :events nil)]
+          (is (:ok? result))
+          (is (not (contains? result :events)))))
+
+      (testing "simple fetch-historical still returns rows only"
+        (is (= 2 (count (yf/fetch-historical "AAPL" :period "1mo"))))
+        (is (vector? (yf/fetch-historical "AAPL" :period "1mo"))))))
+
+  (testing "non-boolean :events is rejected before any request"
+    (with-redefs [http/try-fetch* (fn [& _] (throw (ex-info "no network in tests" {})))]
+      (let [result (yf/fetch-historical* "AAPL" :events "div|split")]
+        (is (false? (:ok? result)))
+        (is (= :invalid-opts (-> result :error :type)))
+        (is (= :events (-> result :error :field)))))))
+
+(defn- mock-http-response [status body]
+  (reify java.net.http.HttpResponse
+    (statusCode [_] status)
+    (body [_] body)))
+
+(deftest test-chart-response-errors
+  (let [parse #(#'http/parse-response* (mock-http-response %1 %2)
+                                       {:ticker "AAPL" :url "u" :parse-fn #'http/chart-response})]
+    (testing "non-200 is :http-error with status, ticker and url"
+      (is (= {:ok? false :error {:type :http-error :status 404 :ticker "AAPL" :url "u"}}
+             (parse 404 "{}"))))
+    (testing "429 is :rate-limited"
+      (is (= :rate-limited (-> (parse 429 "") :error :type))))
+    (testing "200 with an API error keeps Yahoo's message and gains context"
+      (is (= {:type :api-error :message "No data found" :ticker "AAPL" :status 200 :url "u"}
+             (:error (parse 200 "{\"chart\":{\"error\":{\"description\":\"No data found\"}}}")))))))
+
 (defn run-tests []
   (clojure.test/run-tests 'clj-yfinance.core-test))

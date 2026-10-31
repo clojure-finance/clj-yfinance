@@ -27,7 +27,8 @@ No Python bridge. No API key. No external HTTP dependencies. Just Clojure and th
 | Ticker metadata | `clj-yfinance.core` | **Stable** |
 | Company fundamentals & profile | `clj-yfinance.experimental.fundamentals` | Experimental |
 | Analyst estimates & recommendations | `clj-yfinance.experimental.fundamentals` | Experimental |
-| Income/balance/cash-flow statements | `clj-yfinance.experimental.fundamentals` | Experimental |
+| Full income/balance/cash-flow statements | `clj-yfinance.experimental.timeseries` | Experimental |
+| Earnings report dates & EPS surprises | `clj-yfinance.experimental.earnings` | Experimental |
 | Earnings calendar & dividend dates | `clj-yfinance.experimental.fundamentals` | Experimental |
 | Options chains | `clj-yfinance.experimental.options` | Experimental |
 | Dataset conversion (tech.ml.dataset) | `clj-yfinance.dataset` | **Stable** |
@@ -36,7 +37,7 @@ No Python bridge. No API key. No external HTTP dependencies. Just Clojure and th
 | DuckDB SQL queries | `clj-yfinance.duckdb` | **Stable** |
 
 **Stable** features use Yahoo's public chart endpoint, which has been reliable for years.  
-**Experimental** features use Yahoo's authenticated `quoteSummary` / options endpoints — they work today but may break if Yahoo changes their authentication mechanism.
+**Experimental** features use Yahoo's authenticated `quoteSummary`, options and visualization endpoints, or its undocumented fundamentals-timeseries endpoint — they work today but may break if Yahoo changes them or their authentication mechanism.
 
 ## Installation
 
@@ -127,8 +128,26 @@ All stable functions live in `clj-yfinance.core`. Every function has two flavour
 | `:start` / `:end` | epoch seconds (integer) or `java.time.Instant`; `:start` overrides `:period` |
 | `:auto-adjust` | back-adjust `:open`/`:high`/`:low`/`:close` by the adjclose/close ratio, like python-yfinance's `auto_adjust=True` (default `true`; pass `:auto-adjust false` for Yahoo's raw, split-adjusted-only OHLC) |
 | `:prepost` | include pre/post market data (default `false`) |
+| `:events` | also return the window's dividends and splits, from the same request (default `false`; verbose variant only) |
 
 Each row is `{:timestamp :open :high :low :close :volume :adj-close}`. `:adj-close` is Yahoo's dividend- and split-adjusted close and is always included when available — under the default `:auto-adjust true` it equals `:close` by construction; with `:auto-adjust false` it is the only dividend-adjusted figure in the row. Unlike python-yfinance, the column is never dropped, so datasets, Parquet files and DuckDB tables always have the same shape.
+
+The verbose `fetch-historical*` also returns the instrument's identity and exchange details as `:meta`, and with `:events true` the dividends and splits of the same window as `:events` (in the shape `fetch-dividends-splits` returns), so one request gives the bars and everything needed to interpret them:
+
+```clojure
+(def r (yf/fetch-historical* "AAPL" :period "1y" :events true))
+
+(:meta r)
+;; => {:symbol "AAPL" :long-name "Apple Inc." :short-name "Apple Inc."
+;;     :currency "USD" :exchange-name "NMS" :full-exchange-name "NasdaqGS"
+;;     :instrument-type "EQUITY" :first-trade-date 345479400
+;;     :timezone "EDT" :exchange-timezone-name "America/New_York"
+;;     :gmt-offset -14400 :price-hint 2}
+
+(:events r)
+;; => {:dividends {:1786368600 {:amount 0.27 :date 1786368600} ...}   ; 4 in the past year
+;;     :splits    {}}
+```
 
 Invalid parameter combinations are caught before any network call and returned as `:invalid-opts` errors. Technically valid but potentially problematic combinations (e.g. `1m` interval over a 30-day range) produce a warning in the `:warnings` key of the verbose response.
 
@@ -209,7 +228,7 @@ See [Error Types Reference](#error-types-reference) for the full list.
 | `fetch-fundamentals` / `*` | P/E, market cap, margins, revenue, analyst price targets |
 | `fetch-company-info` / `*` | Sector, industry, description, employees, officers |
 | `fetch-analyst` / `*` | EPS/revenue estimates, buy/hold/sell trends, earnings surprises |
-| `fetch-financials` / `*` | Income statement, balance sheet, cash flow (annual or quarterly) |
+| `fetch-financials` / `*` | Statement modules of `quoteSummary` (Yahoo now serves only a few fields here; see [Financial Statements](#experimental-financial-statements)) |
 | `fetch-calendar` / `*` | Upcoming earnings dates, EPS/revenue estimates, ex-dividend date |
 | `fetch-quotesummary*` | Raw access to any `quoteSummary` module combination |
 
@@ -261,6 +280,99 @@ See [Error Types Reference](#error-types-reference) for the full list.
 (auth/session-info)     ;; => {:status :active, :age-minutes 12.3, :crumb-present? true}
 (auth/force-refresh!)   ;; force a new session
 ```
+
+## Experimental: Financial Statements
+
+> ⚠️ Uses Yahoo's undocumented fundamentals-timeseries endpoint (the one behind Yahoo's own financials pages). It needs no cookie or crumb, but Yahoo can change it at any time.
+
+```clojure
+(require '[clj-yfinance.experimental.timeseries :as yfs])
+```
+
+| Function | Returns |
+|---|---|
+| `fetch-statements` / `*` | Income statement, balance sheet and cash flow line items as rows |
+| `fetch-timeseries` / `*` | Raw access by Yahoo type string (e.g. `"quarterlyTotalRevenue"`) |
+| `statement-fields` | The field catalog: `{:income-statement [...] :balance-sheet [...] :cash-flow [...]}` (Yahoo names, 375 in all) |
+| `field->keyword` | Yahoo name to row keyword: `"DilutedEPS"` → `:diluted-eps`, `"NetPPE"` → `:net-ppe` |
+
+```clojure
+;; Every statement at every frequency (about 1000 Yahoo types, 10 requests)
+(yfs/fetch-statements "AAPL")
+
+;; Narrow it down
+(yfs/fetch-statements "AAPL" :frequencies [:quarterly] :fields ["TotalRevenue"])
+;; => [{:ticker "AAPL" :statement :income-statement :field :total-revenue
+;;      :yahoo-field "TotalRevenue" :frequency :quarterly
+;;      :period-end "2025-06-30" :period-type "3M" :currency "USD" :value 9.4036E10}
+;;     {... :period-end "2025-09-30" ... :value 1.02466E11}
+;;     ...]                                             ; 5 quarters
+
+(yfs/fetch-statements "NVDA" :statements [:balance-sheet] :frequencies [:annual])
+
+;; Raw access: rows sorted by :type, then :period-end
+(yfs/fetch-timeseries "MSFT" ["quarterlyDilutedEPS" "trailingTotalRevenue"])
+;; => [{:ticker "MSFT" :type "quarterlyDilutedEPS" :period-end "2025-09-30"
+;;      :period-type "3M" :currency "USD" :value 3.72}
+;;     ...
+;;     {:ticker "MSFT" :type "trailingTotalRevenue" :period-end "2026-09-30"
+;;      :period-type "TTM" :currency "USD" :value 3.46445E11}]
+```
+
+| Option (`fetch-statements`) | Values |
+|---|---|
+| `:frequencies` | any of `:annual` `:quarterly` `:trailing` (default all) |
+| `:statements` | any of `:income-statement` `:balance-sheet` `:cash-flow` (default all) |
+| `:fields` | Yahoo field names from the catalog; overrides `:statements` |
+| `:start` / `:end` | epoch seconds or `java.time.Instant` (default: all available) |
+
+Rows are sorted by statement, field, frequency and period end. Unknown option keys or values (including field names not in the catalog) return `:invalid-opts`. If any of the underlying requests fails, the whole call fails — the verbose variant never returns partial statements.
+
+What Yahoo returns:
+
+- **Depth**: typically 4 annual, 5 quarterly and a few trailing-twelve-month points. Semi-annual reporters have gaps in the quarterly series. There is no trailing balance sheet.
+- **Period ends** are normalised to month ends: NVDA's fiscal year ending 2026-01-25 is reported as `"2026-01-31"`.
+- **Restated for splits**: annual and quarterly per-share values use today's share basis — NVDA's FY2024 diluted EPS is `1.19`, not the `11.93` reported before its 2024 10:1 split. Trailing points are not always restated (NVDA's trailing diluted EPS at 2024-01-31 is still `11.93`).
+- **Currency** is the reporting currency, which can differ from the trading currency: 0005.HK (traded in HKD) reports in USD, so `(yfs/fetch-statements "0005.HK" :frequencies [:annual] :fields ["NetIncome"])` gives `:currency "USD"`.
+- **Values are as of today**, not as first published: use the report dates below to know when a figure became public.
+
+## Experimental: Earnings Dates
+
+> ⚠️ Uses Yahoo's authenticated `quoteSummary` and visualization endpoints, with the same session and caveats as fundamentals.
+
+```clojure
+(require '[clj-yfinance.experimental.earnings :as yfe])
+```
+
+| Function | Returns |
+|---|---|
+| `fetch-earnings-history` / `*` | Last four quarters: period end, report date and time, EPS actual vs. estimate |
+| `fetch-earnings-dates` / `*` | Longer history of earnings announcements with EPS estimate, actual and surprise |
+
+```clojure
+(yfe/fetch-earnings-history "AAPL")
+;; => [{:ticker "AAPL" :period-end "2025-09-30"
+;;      :reported-date "2025-10-30" :reported-at 1761856200   ; 2025-10-30T20:30:00Z
+;;      :fiscal-quarter "4Q2025" :calendar-quarter "3Q2025"
+;;      :eps-actual 1.85 :eps-estimate 1.76993 :eps-difference 0.08 :surprise-pct 4.52
+;;      :currency "USD"}
+;;     ...]                                                    ; 4 quarters, oldest first
+
+(yfe/fetch-earnings-dates "AAPL" :limit 200)
+;; => [{:ticker "AAPL" :company-name "Apple Inc." :event-name nil
+;;      :announced-at "1993-01-16T05:00:00Z" :announced-epoch 727160400 ...}
+;;     ...
+;;     {:ticker "AAPL" :company-name "Apple Inc." :event-name nil
+;;      :announced-at "2025-05-01T20:30:00Z" :announced-epoch 1746131400
+;;      :timing "TAS" :eps-estimate 1.63 :eps-actual 1.65 :surprise-pct 1.41
+;;      :timezone "EDT" :gmt-offset-ms -14400000}]           ; 127 events
+```
+
+`fetch-earnings-history` pairs each fiscal period end with the instant its results were published, which is what a point-in-time analysis needs: a figure for the quarter ending 2025-09-30 was not known before 2025-10-30 20:30 UTC. `fetch-earnings-dates` returns the most recent `:limit` events (default 100; requests are paged at Yahoo's maximum of 250), sorted oldest first.
+
+- The EPS figures are the ones analysts estimate (usually adjusted, non-GAAP) and can differ from the diluted EPS of the statements. `:currency` in the history is the reporting currency.
+- `:event-name` is `nil` for plain earnings releases and names other events (`"Annual Shareholders Meeting"`, `"Q1 2025  Earnings Call"`), whose EPS fields are usually `nil`. Filter on it if you only want releases.
+- Yahoo's announcement history reaches back to the 1990s for large US companies but currently ends in mid-2025; coverage outside the US is thin (0005.HK has three call events and no EPS). Use `fetch-earnings-history` for recent quarters.
 
 ## Experimental: Options Chains
 
@@ -492,7 +604,7 @@ To render the entire notebook to a static HTML file:
 - **No built-in caching** — every call hits the network. Add `core.memoize` or similar at the application level.
 - **No built-in rate limiting** — aggressive parallel use triggers 429 errors. Use `:concurrency` on `fetch-prices` and retry logic via the verbose API.
 - **Unofficial API** — Yahoo does not publicly document these endpoints. Check their Terms of Service for commercial use.
-- **Financial statement coverage** — Yahoo restricts some balance sheet and cash flow fields. The income statement is the most complete module.
+- **Financial statement coverage** — Yahoo's `quoteSummary` statement modules (`fetch-financials`) now carry only a few fields; use `clj-yfinance.experimental.timeseries` for full statements. Yahoo keeps only a few years of history there.
 
 ## Alternative Data Providers
 
