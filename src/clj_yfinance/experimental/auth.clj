@@ -19,7 +19,7 @@
    - Cookies auto-refresh every hour
    - MAX 1 retry on authentication failure
    - Rate-limit protection via session reuse"
-  (:import [java.net.http HttpClient HttpRequest HttpResponse$BodyHandlers HttpClient$Redirect]
+  (:import [java.net.http HttpClient HttpRequest HttpRequest$BodyPublishers HttpResponse$BodyHandlers HttpClient$Redirect]
            [java.net URI CookieManager]
            [java.time Duration]))
 
@@ -64,13 +64,21 @@
                       (.build))
      :cookie-handler cookie-handler}))
 
-(defn- build-request [url]
-  (-> (HttpRequest/newBuilder)
-      (.uri (URI/create url))
-      (.header "User-Agent" user-agent)
-      (.timeout (Duration/ofSeconds 15))
-      (.GET)
-      (.build)))
+(defn- build-request
+  "GET request for `url`, or with opts {:method :post :body s :content-type ct}
+   a POST of the string body (content type defaults to application/json)."
+  ([url] (build-request url nil))
+  ([url {:keys [method body content-type] :or {method :get}}]
+   (let [builder (-> (HttpRequest/newBuilder)
+                     (.uri (URI/create url))
+                     (.header "User-Agent" user-agent)
+                     (.timeout (Duration/ofSeconds 15)))]
+     (case method
+       :get (.build (.GET builder))
+       :post (-> builder
+                 (.header "Content-Type" (or content-type "application/json"))
+                 (.POST (HttpRequest$BodyPublishers/ofString (or body "")))
+                 (.build))))))
 
 (defn- send-request [client request]
   (.send client request (HttpResponse$BodyHandlers/ofString)))
@@ -181,33 +189,47 @@
           URL. Pass a function when the URL embeds the crumb, so the retry
           after a 401 uses the refreshed crumb.
    - retry-on-401?: If true, will attempt ONE session refresh on 401 error
+   - method: :get (default) or :post
+   - body: request body string, for :post
+   - content-type: Content-Type of the body (default \"application/json\")
+
+   The retry after a 401 repeats the same method and body.
 
    Returns:
    {:ok? true :response <HttpResponse>} or
-   {:ok? false :error {...}}"
-  [url & {:keys [retry-on-401?] :or {retry-on-401? true}}]
-  (let [session (get-session)]
-    (if (= :failed (:status session))
-      {:ok? false
-       :error {:type :session-failed
-               :message "Session initialization failed"
-               :exception (:error session)}}
-      (try
-        (let [request (build-request (if (fn? url) (url (:crumb session)) url))
-              response (send-request (:http-client session) request)
-              status (.statusCode response)]
-          (if (and (= 401 status) retry-on-401?)
-            (do
-              (log "Got 401 error, attempting ONE session refresh...")
-              (force-refresh!)
-              ;; Retry ONCE with new session (retry-on-401? false prevents infinite loop)
-              (authenticated-request url :retry-on-401? false))
-            {:ok? true :response response}))
-        (catch Exception e
-          {:ok? false
-           :error {:type :request-failed
-                   :message (.getMessage e)
-                   :exception e}})))))
+   {:ok? false :error {...}} (:invalid-opts for an unknown :method)"
+  [url & {:keys [retry-on-401? method body content-type]
+          :or {retry-on-401? true method :get}}]
+  (if-not (#{:get :post} method)
+    {:ok? false
+     :error {:type :invalid-opts
+             :field :method
+             :value method
+             :message ":method must be :get or :post"}}
+    (let [session (get-session)]
+      (if (= :failed (:status session))
+        {:ok? false
+         :error {:type :session-failed
+                 :message "Session initialization failed"
+                 :exception (:error session)}}
+        (try
+          (let [request (build-request (if (fn? url) (url (:crumb session)) url)
+                                       {:method method :body body :content-type content-type})
+                response (send-request (:http-client session) request)
+                status (.statusCode response)]
+            (if (and (= 401 status) retry-on-401?)
+              (do
+                (log "Got 401 error, attempting ONE session refresh...")
+                (force-refresh!)
+                ;; Retry ONCE with new session (retry-on-401? false prevents infinite loop)
+                (authenticated-request url :retry-on-401? false
+                                       :method method :body body :content-type content-type))
+              {:ok? true :response response}))
+          (catch Exception e
+            {:ok? false
+             :error {:type :request-failed
+                     :message (.getMessage e)
+                     :exception e}}))))))
 
 (defn get-crumb
   "Get the current authentication crumb.
