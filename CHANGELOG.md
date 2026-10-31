@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `clj-yfinance.experimental.timeseries`: full income statement, balance sheet
+  and cash flow statement from Yahoo's fundamentals-timeseries endpoint (no
+  cookie or crumb). `fetch-statements` / `fetch-statements*` return one row per
+  statement, field, frequency (annual, quarterly, trailing) and period end, with
+  the reporting currency; `fetch-timeseries` / `fetch-timeseries*` give raw
+  access by Yahoo type string, sent in chunks of at most 100 types per request
+  with the chart endpoint's retry and host failover. The field catalog
+  (`statement-fields`, 375 fields) comes from python-yfinance's
+  `fundamentals_keys`; `field->keyword` maps Yahoo names to kebab-case keywords.
+- `clj-yfinance.experimental.earnings`: `fetch-earnings-history` /
+  `fetch-earnings-history*` (last four quarters from the quoteSummary
+  `earnings` module: period end, report date and instant, EPS actual vs.
+  estimate, surprise) and `fetch-earnings-dates` / `fetch-earnings-dates*`
+  (announcement history from Yahoo's visualization API, paged at 250 rows per
+  request).
+- `fetch-historical*` returns the chart metadata (symbol, currency, exchange,
+  instrument type, first trade date, time zone, GMT offset, names) as `:meta`.
+- `fetch-historical*` option `:events` (default `false`): also return the
+  window's dividends and splits as `:events`, in the shape
+  `fetch-dividends-splits` returns, from the same request.
+- `experimental.auth/authenticated-request` accepts `:method` (`:get` or
+  `:post`), `:body` and `:content-type`; the 401 retry repeats the same request.
+
+### Changed
+
+- `clj-yfinance.http/get-with-failover*` is the generic GET with retry, backoff
+  and host failover that the chart endpoint uses; chart behaviour is unchanged.
+- `fetch-financials` docs point to `experimental.timeseries` for full
+  statements.
+
 ## 0.1.9 — 2026-10-20
 
 ### Fixed

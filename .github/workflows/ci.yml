@@ -43,5 +43,11 @@ jobs:
       - name: Run options tests
         run: clojure -M:test -e "(require 'clj-yfinance.experimental.options-test) (System/exit (if (clojure.test/successful? (clj-yfinance.experimental.options-test/run-tests)) 0 1))"
 
+      - name: Run timeseries tests
+        run: clojure -M:test -e "(require 'clj-yfinance.experimental.timeseries-test) (System/exit (if (clojure.test/successful? (clj-yfinance.experimental.timeseries-test/run-tests)) 0 1))"
+
+      - name: Run earnings tests
+        run: clojure -M:test -e "(require 'clj-yfinance.experimental.earnings-test) (System/exit (if (clojure.test/successful? (clj-yfinance.experimental.earnings-test/run-tests)) 0 1))"
+
       - name: Run dataset tests
         run: clojure -M:test:dataset -e "(require 'clj-yfinance.dataset-test) (System/exit (if (clojure.test/successful? (clj-yfinance.dataset-test/run-tests)) 0 1))"

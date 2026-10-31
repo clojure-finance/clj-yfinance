@@ -311,8 +311,9 @@
    - Balance sheet:    :endDate only (other fields blocked by Yahoo)
    - Cash flow:        :netIncome, :endDate only (other fields blocked by Yahoo)
 
-   For comprehensive financial statements, consider Financial Modeling Prep
-   or Alpha Vantage as stable alternatives.
+   For full statements from Yahoo, use
+   clj-yfinance.experimental.timeseries/fetch-statements (a different Yahoo
+   endpoint); Financial Modeling Prep or Alpha Vantage are stable alternatives.
 
    Annual :data keys:
    - :incomeStatementHistory    - {:incomeStatementHistory [<4 annual periods>]}
