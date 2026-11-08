@@ -43,10 +43,10 @@ No Python bridge. No API key. No external HTTP dependencies. Just Clojure and th
 
 ```clojure
 ;; deps.edn
-com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.10"}
+com.github.clojure-finance/clj-yfinance {:mvn/version "0.1.11"}
 
 ;; project.clj
-[com.github.clojure-finance/clj-yfinance "0.1.10"]
+[com.github.clojure-finance/clj-yfinance "0.1.11"]
 ```
 
 Requires **JDK 11+**. The only runtime dependency is [charred](https://github.com/cnuernber/charred) for JSON parsing. All other integrations (datasets, Parquet, DuckDB, Kindly) are optional — add their libraries to your deps only if you use them.
@@ -127,10 +127,22 @@ All stable functions live in `clj-yfinance.core`. Every function has two flavour
 | `:interval` | `1m` `2m` `5m` `15m` `30m` `60m` `90m` `1h` `1d` `5d` `1wk` `1mo` `3mo` |
 | `:start` / `:end` | epoch seconds (integer) or `java.time.Instant`; `:start` overrides `:period` |
 | `:auto-adjust` | back-adjust `:open`/`:high`/`:low`/`:close` by the adjclose/close ratio, like python-yfinance's `auto_adjust=True` (default `true`; pass `:auto-adjust false` for Yahoo's raw, split-adjusted-only OHLC) |
+| `:split-adjust` | pass `false` to undo Yahoo's retroactive split adjustment and get as-traded prices and volumes (default `true`; implies `:auto-adjust false`) |
 | `:prepost` | include pre/post market data (default `false`) |
 | `:events` | also return the window's dividends and splits, from the same request (default `false`; verbose variant only) |
 
 Each row is `{:timestamp :open :high :low :close :volume :adj-close}`. `:adj-close` is Yahoo's dividend- and split-adjusted close and is always included when available — under the default `:auto-adjust true` it equals `:close` by construction; with `:auto-adjust false` it is the only dividend-adjusted figure in the row. Unlike python-yfinance, the column is never dropped, so datasets, Parquet files and DuckDB tables always have the same shape.
+
+Yahoo's series is always retroactively split-adjusted — even `:auto-adjust false` never returns the prices a share actually traded at before a split. `:split-adjust false` recovers them: it multiplies `:open`/`:high`/`:low`/`:close` (and divides `:volume`) by the cumulative ratio of all later splits, using the split events requested with the same chart call. When `:end` is given, splits after the window still affect its prices, so they are fetched with one extra request. `:adj-close` stays Yahoo's fully adjusted series:
+
+```clojure
+;; Yahoo reports NVDA's 2024-06-05 close as 122.44, but it traded in the 1000s
+;; until the 2024-06-10 10:1 split:
+(-> (yf/fetch-historical "NVDA" :start 1717372800 :end 1717632000 :split-adjust false)
+    last
+    (select-keys [:close :volume]))
+;; => {:close 1224.40 :volume 52840200}   ; what was actually on the tape that day
+```
 
 The verbose `fetch-historical*` also returns the instrument's identity and exchange details as `:meta`, and with `:events true` the dividends and splits of the same window as `:events` (in the shape `fetch-dividends-splits` returns), so one request gives the bars and everything needed to interpret them:
 
@@ -177,6 +189,8 @@ Yahoo back-adjusts all historical quotes for splits, so share counts recorded be
 ```
 
 Splits dated exactly at the `since` timestamp are excluded (trades on the effective date are already in post-split units); with date-granularity trade data, pass the end of the trade day.
+
+> ⚠️ Yahoo occasionally books a spin-off as a split event (e.g. CTVA 2026-10-01, ratio 6.665 for the VYLR spin-off). Such an event divides the parent's price history like a real split, but the share count never changed — filter it out before computing share-count factors. There is no reliable way to detect these automatically, and the right treatment (where the spun-off value went) depends on your books, so the library does not try. `:split-adjust false` is unaffected: it undoes exactly what Yahoo applied to prices, spin-off adjustments included.
 
 ### Ticker Info
 
@@ -604,6 +618,8 @@ To render the entire notebook to a static HTML file:
 - **No built-in caching** — every call hits the network. Add `core.memoize` or similar at the application level.
 - **No built-in rate limiting** — aggressive parallel use triggers 429 errors. Use `:concurrency` on `fetch-prices` and retry logic via the verbose API.
 - **Unofficial API** — Yahoo does not publicly document these endpoints. Check their Terms of Service for commercial use.
+- **All prices are retroactively split-adjusted** — use `:split-adjust false` for as-traded prices, and `fetch-split-factor` to reconcile pre-split share counts. Some split events are really spin-offs (see [Split factors](#split-factors)).
+- **Delisted or renamed tickers can vanish** — the chart endpoint may return no data at any range for them (e.g. ATGE, EVA, NGD, PSTG as of 2026-11). Keep your own record of historical prices you depend on.
 - **Financial statement coverage** — Yahoo's `quoteSummary` statement modules (`fetch-financials`) now carry only a few fields; use `clj-yfinance.experimental.timeseries` for full statements. Yahoo keeps only a few years of history there.
 
 ## Alternative Data Providers

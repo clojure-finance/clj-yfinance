@@ -320,6 +320,40 @@
                                               :adjclose [{:adjclose [5.0]}]}}
                                 {:auto-adjust true}))))))
 
+(deftest test-split-unadjust-rows
+  (let [rows [{:timestamp 100 :open 10.0 :high 11.0 :low 9.0 :close 10.0 :volume 300 :adj-close 9.5}
+              {:timestamp 200 :open 20.0 :high 22.0 :low 18.0 :close 20.0 :volume 200 :adj-close 19.5}
+              {:timestamp 300 :open 30.0 :high 33.0 :low 27.0 :close 30.0 :volume 100 :adj-close 29.5}]
+        splits {:150 {:date 150 :numerator 2.0 :denominator 1.0 :splitRatio "2:1"}
+                :250 {:date 250 :numerator 3.0 :denominator 1.0 :splitRatio "3:1"}}]
+    (testing "prices scale by the cumulative ratio of later splits, volume divides, :adj-close untouched"
+      (is (= [{:timestamp 100 :open 60.0 :high 66.0 :low 54.0 :close 60.0 :volume 50 :adj-close 9.5}
+              {:timestamp 200 :open 60.0 :high 66.0 :low 54.0 :close 60.0 :volume 67 :adj-close 19.5}
+              {:timestamp 300 :open 30.0 :high 33.0 :low 27.0 :close 30.0 :volume 100 :adj-close 29.5}]
+             (parse/split-unadjust-rows rows splits))))
+
+    (testing "a split dated exactly at the row timestamp does not scale that row"
+      (is (= 30.0 (-> (parse/split-unadjust-rows
+                       [{:timestamp 250 :open 30.0 :high 30.0 :low 30.0 :close 30.0 :volume 1}]
+                       splits)
+                      first
+                      :close))))
+
+    (testing "reverse splits scale prices down and volume up"
+      (is (= [{:timestamp 100 :open 1.0 :high 1.0 :low 1.0 :close 1.0 :volume 1000}]
+             (parse/split-unadjust-rows
+              [{:timestamp 100 :open 10.0 :high 10.0 :low 10.0 :close 10.0 :volume 100}]
+              {:200 {:date 200 :numerator 1.0 :denominator 10.0 :splitRatio "1:10"}}))))
+
+    (testing "nil values pass through"
+      (is (= [{:timestamp 100 :open nil :high nil :low nil :close 20.0 :volume nil}]
+             (parse/split-unadjust-rows
+              [{:timestamp 100 :open nil :high nil :low nil :close 10.0 :volume nil}]
+              {:200 {:date 200 :numerator 2.0 :denominator 1.0 :splitRatio "2:1"}}))))
+
+    (testing "empty splits map returns rows unchanged"
+      (is (= rows (parse/split-unadjust-rows rows {}))))))
+
 ;; Trimmed from a real AAPL response (range=1mo&interval=1d&events=div|split)
 (def ^:private chart-with-events-json
   "{\"chart\":{\"result\":[{\"meta\":{\"currency\":\"USD\",\"symbol\":\"AAPL\",\"exchangeName\":\"NMS\",\"fullExchangeName\":\"NasdaqGS\",\"instrumentType\":\"EQUITY\",\"firstTradeDate\":345479400,\"regularMarketTime\":1761854401,\"hasPrePostMarketData\":true,\"gmtoffset\":-14400,\"timezone\":\"EDT\",\"exchangeTimezoneName\":\"America/New_York\",\"regularMarketPrice\":271.4,\"longName\":\"Apple Inc.\",\"shortName\":\"Apple Inc.\",\"priceHint\":2,\"dataGranularity\":\"1d\",\"range\":\"1mo\"},\"timestamp\":[1754919000,1755005400],\"events\":{\"dividends\":{\"1754884800\":{\"amount\":0.26,\"date\":1754884800}},\"splits\":{\"1598880600\":{\"date\":1598880600,\"numerator\":4.0,\"denominator\":1.0,\"splitRatio\":\"4:1\"}}},\"indicators\":{\"quote\":[{\"open\":[227.9,228.0],\"high\":[229.5,230.8],\"low\":[227.0,227.1],\"close\":[227.2,229.6],\"volume\":[61806100,55626200]}],\"adjclose\":[{\"adjclose\":[226.9,229.3]}]}}],\"error\":null}}")
@@ -381,6 +415,88 @@
         (is (false? (:ok? result)))
         (is (= :invalid-opts (-> result :error :type)))
         (is (= :events (-> result :error :field)))))))
+
+;; Yahoo-style retroactively split-adjusted chart: a 2:1 split falls between
+;; the two bars, so the first bar traded at twice its reported prices.
+(def ^:private split-adjusted-chart
+  {:meta {:symbol "TEST" :currency "USD"}
+   :timestamp [1000 2000]
+   :events {:splits {:1500 {:date 1500 :numerator 2.0 :denominator 1.0 :splitRatio "2:1"}}}
+   :indicators {:quote [{:open [50.0 56.0] :high [51.0 57.0] :low [49.0 55.0]
+                         :close [50.0 56.0] :volume [1000 500]}]
+                :adjclose [{:adjclose [45.0 56.0]}]}})
+
+;; A 10:1 split after the window above, as returned by the supplemental
+;; splits fetch for :end-bounded requests.
+(def ^:private later-splits-chart
+  {:meta {:symbol "TEST"}
+   :events {:splits {:3000 {:date 3000 :numerator 10.0 :denominator 1.0 :splitRatio "10:1"}}}})
+
+(deftest test-fetch-historical-split-adjust
+  (testing ":split-adjust false recovers as-traded rows from the same response's split events"
+    (let [queries (atom [])]
+      (with-redefs [http/try-fetch* (fn [_ query]
+                                      (swap! queries conj query)
+                                      (parse/ok split-adjusted-chart))]
+        (let [result (yf/fetch-historical* "TEST" :period "1y" :split-adjust false)
+              [r1 r2] (:data result)]
+          (is (:ok? result))
+          (is (= 1 (count @queries)) "no extra request without :end")
+          (is (re-find #"events=div%7Csplit" (first @queries)))
+          (is (= {:timestamp 1000 :open 100.0 :high 102.0 :low 98.0 :close 100.0
+                  :volume 500 :adj-close 45.0}
+                 r1)
+              "pre-split prices doubled, volume halved, :adj-close untouched (auto-adjust implied off)")
+          (is (= {:timestamp 2000 :open 56.0 :high 57.0 :low 55.0 :close 56.0
+                  :volume 500 :adj-close 56.0}
+                 r2))
+          (is (not (contains? result :events)))))))
+
+  (testing ":split-adjust false with :end also applies splits after the window, via one extra request"
+    (let [queries (atom [])]
+      (with-redefs [http/try-fetch* (fn [_ query]
+                                      (swap! queries conj query)
+                                      (parse/ok (if (re-find #"period1=2500" query)
+                                                  later-splits-chart
+                                                  split-adjusted-chart)))]
+        (let [result (yf/fetch-historical* "TEST" :start 500 :end 2500 :split-adjust false)
+              [r1 r2] (:data result)]
+          (is (:ok? result))
+          (is (= 2 (count @queries)))
+          (is (= 1000.0 (:close r1)) "scaled by the window split and the later split")
+          (is (= 560.0 (:close r2)) "scaled by the later split only")))))
+
+  (testing "a failing supplemental splits fetch fails the request instead of returning adjusted rows"
+    (with-redefs [http/try-fetch* (fn [_ query]
+                                    (if (re-find #"period1=2500" query)
+                                      (parse/err {:type :rate-limited})
+                                      (parse/ok split-adjusted-chart)))]
+      (let [result (yf/fetch-historical* "TEST" :start 500 :end 2500 :split-adjust false)]
+        (is (false? (:ok? result)))
+        (is (= :rate-limited (-> result :error :type)))
+        (is (string? (-> result :error :context))))))
+
+  (testing ":events true still returns only the window's own events"
+    (with-redefs [http/try-fetch* (fn [_ query]
+                                    (parse/ok (if (re-find #"period1=2500" query)
+                                                later-splits-chart
+                                                split-adjusted-chart)))]
+      (let [result (yf/fetch-historical* "TEST" :start 500 :end 2500
+                                         :split-adjust false :events true)]
+        (is (= [1500] (map :date (vals (-> result :events :splits))))))))
+
+  (testing "non-boolean :split-adjust is rejected before any request"
+    (with-redefs [http/try-fetch* (fn [& _] (throw (ex-info "no network in tests" {})))]
+      (let [result (yf/fetch-historical* "TEST" :split-adjust "no")]
+        (is (false? (:ok? result)))
+        (is (= :invalid-opts (-> result :error :type)))
+        (is (= :split-adjust (-> result :error :field))))))
+
+  (testing "simple fetch-historical passes :split-adjust through"
+    (with-redefs [http/try-fetch* (fn [_ _] (parse/ok split-adjusted-chart))]
+      (is (= 100.0 (-> (yf/fetch-historical "TEST" :period "1y" :split-adjust false)
+                       first
+                       :close))))))
 
 (defn- mock-http-response [status body]
   (reify java.net.http.HttpResponse

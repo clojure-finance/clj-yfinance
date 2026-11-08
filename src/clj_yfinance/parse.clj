@@ -122,3 +122,32 @@
   (let [events (:events chart-result)]
     {:dividends (or (:dividends events) {})
      :splits (or (:splits events) {})}))
+
+(defn split-unadjust-rows
+  "Undo Yahoo's retroactive split adjustment: multiply each row's
+   :open/:high/:low/:close by the cumulative numerator/denominator ratio of all
+   splits dated strictly after the row's :timestamp, and divide :volume by the
+   same ratio (rounded), recovering as-traded values. `splits` is a :splits map
+   as returned by chart-events; it must cover every split from the earliest row
+   to the present, or earlier rows stay adjusted by the missing ones.
+   :adj-close is left untouched (it stays Yahoo's dividend- and split-adjusted
+   series) and nil values pass through. Pure function for testing."
+  [rows splits]
+  (if (empty? splits)
+    rows
+    (let [split-seq (vals splits)]
+      (mapv (fn [{:keys [timestamp] :as row}]
+              (let [factor (->> split-seq
+                                (filter #(> (:date %) timestamp))
+                                (map #(/ (double (:numerator %)) (double (:denominator %))))
+                                (reduce * 1.0))
+                    scale (fn [x] (when x (* (double x) factor)))]
+                (if (== 1.0 factor)
+                  row
+                  (-> row
+                      (update :open scale)
+                      (update :high scale)
+                      (update :low scale)
+                      (update :close scale)
+                      (update :volume (fn [v] (when v (Math/round (/ (double v) factor)))))))))
+            rows))))

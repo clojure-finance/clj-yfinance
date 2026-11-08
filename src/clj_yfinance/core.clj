@@ -123,9 +123,11 @@
                  [t (:data result)])))
        (into {})))
 
+(declare fetch-dividends-splits*)
+
 (defn fetch-historical*
   "Fetch historical OHLCV data for a ticker. Returns structured result {:ok? true :data [...] :request {...} :warnings [...]} or {:ok? false :error {...}}.
-   
+
    Options:
      :period    - 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max (default 1y)
      :interval  - 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo (default 1d)
@@ -135,6 +137,13 @@
                     like python-yfinance's auto_adjust=True, so the whole OHLC series
                     is adjusted for dividends as well as splits (default true).
                     Rows missing adjclose are left unadjusted.
+     :split-adjust - Yahoo retroactively split-adjusts the whole series; pass false
+                    to multiply :open/:high/:low/:close back to as-traded prices
+                    (and divide :volume) using the split events, which are requested
+                    with the same chart call (default true). Implies :auto-adjust
+                    false; :adj-close stays Yahoo's fully adjusted series. When :end
+                    is given, splits after it still affect the window's prices, so
+                    they are fetched with one extra request.
      :prepost     - Include pre/post market data (default false)
      :events      - Also return the dividend and split events of the window, from
                     the same request (default false)
@@ -142,7 +151,8 @@
    Each row is {:timestamp :open :high :low :close :volume :adj-close}. :adj-close
    is Yahoo's dividend- and split-adjusted close and is always included when Yahoo
    provides it; with :auto-adjust true it equals :close by construction. Pass
-   :auto-adjust false to get Yahoo's raw (split-adjusted only) OHLC alongside it.
+   :auto-adjust false to get Yahoo's raw (split-adjusted only) OHLC alongside it,
+   or :split-adjust false for as-traded OHLC.
 
    Besides :data, a successful result carries :meta, the instrument's identity
    and exchange fields from the chart response: :symbol :currency :exchange-name
@@ -156,14 +166,24 @@
        non-boolean :events) are rejected immediately with :invalid-opts error
      - Valid but incompatible combinations (e.g., 1m interval with 1mo period exceeding 7-day limit)
        generate warnings in :warnings key but don't fail—Yahoo's API will reject truly invalid requests"
-  [ticker & {:keys [period interval start end auto-adjust prepost events]
-             :or {period "1y" interval "1d" auto-adjust true prepost false events false}}]
-  (let [validation-result (if (or (nil? events) (boolean? events))
-                            (validation/validate-opts {:period period :interval interval :start start :end end})
+  [ticker & {:keys [period interval start end auto-adjust prepost events split-adjust]
+             :or {period "1y" interval "1d" auto-adjust true prepost false events false
+                  split-adjust true}}]
+  (let [validation-result (cond
+                            (not (or (nil? events) (boolean? events)))
                             (parse/err {:type :invalid-opts
                                         :field :events
                                         :value events
-                                        :message ":events must be true or false (nil counts as false)"}))]
+                                        :message ":events must be true or false (nil counts as false)"})
+
+                            (not (or (nil? split-adjust) (boolean? split-adjust)))
+                            (parse/err {:type :invalid-opts
+                                        :field :split-adjust
+                                        :value split-adjust
+                                        :message ":split-adjust must be true or false (nil counts as true)"})
+
+                            :else
+                            (validation/validate-opts {:period period :interval interval :start start :end end}))]
     (if-not (:ok? validation-result)
       validation-result
       (try
@@ -171,7 +191,7 @@
                                            :period period
                                            :start start
                                            :end end
-                                           :events (when events "div|split")
+                                           :events (when (or events (false? split-adjust)) "div|split")
                                            :prepost prepost})]
           (if-not (:ok? result)
             result
@@ -199,22 +219,41 @@
                                :message "Missing required OHLCV fields"})
 
                 :else
-                (cond-> (assoc result
-                               :data (parse/chart->rows data {:auto-adjust auto-adjust})
-                               :meta (parse/chart-meta data))
-                  events (assoc :events (parse/chart-events data)))))))
+                (let [rows (parse/chart->rows
+                            data {:auto-adjust (if (false? split-adjust) false auto-adjust)})
+                      base (cond-> (assoc result
+                                          :data rows
+                                          :meta (parse/chart-meta data))
+                             events (assoc :events (parse/chart-events data)))]
+                  (if-not (false? split-adjust)
+                    base
+                    (let [later (when end
+                                  (fetch-dividends-splits*
+                                   ticker
+                                   :start (min (parse/->epoch end)
+                                               (.getEpochSecond (java.time.Instant/now)))))]
+                      (if (and later (not (:ok? later)))
+                        (assoc-in later [:error :context]
+                                  "fetching splits after :end for :split-adjust false")
+                        (assoc base :data
+                               (parse/split-unadjust-rows
+                                rows
+                                (merge (:splits (parse/chart-events data))
+                                       (:splits (:data later)))))))))))))
         (catch Exception e
           (parse/err {:type :exception :ticker ticker :message (.getMessage e)}))))))
 
 (defn fetch-historical
   "Fetch historical OHLCV data for a ticker. Returns vector of maps, empty on failure.
    Options as for fetch-historical*."
-  [ticker & {:keys [period interval start end auto-adjust prepost]
-             :or {period "1y" interval "1d" auto-adjust true prepost false}}]
+  [ticker & {:keys [period interval start end auto-adjust prepost split-adjust]
+             :or {period "1y" interval "1d" auto-adjust true prepost false
+                  split-adjust true}}]
   (let [result (fetch-historical* ticker
                                   :period period :interval interval
                                   :start start :end end
-                                  :auto-adjust auto-adjust :prepost prepost)]
+                                  :auto-adjust auto-adjust :prepost prepost
+                                  :split-adjust split-adjust)]
     (if (:ok? result)
       (:data result)
       [])))
@@ -271,7 +310,13 @@
    Note: split :date timestamps mark the market open of the effective date, so
    trades executed ON the effective date (already in post-split units) are
    correctly excluded as long as `since` is at or after that timestamp — when
-   working with date-granularity trade data, pass the END of the trade day."
+   working with date-granularity trade data, pass the END of the trade day.
+
+   Caveat: Yahoo occasionally books a spin-off as a split event (e.g. CTVA
+   2026-10-01, ratio 6.665 for the VYLR spin-off). Such an event divides the
+   parent's price history like a real split, but the share count never changed,
+   so filter it out before computing share-count factors. There is no reliable
+   way to detect these automatically — the ratio looks like any other."
   ([splits since] (cumulative-split-factor splits since nil))
   ([splits since until]
    (let [since-epoch (parse/->epoch since)
@@ -352,8 +397,11 @@
 
   (fetch-dividends-splits "AAPL" :period "10y")
 
-  ;; Raw (unadjusted) OHLC; the default back-adjusts for dividends and splits like python-yfinance auto_adjust=True
+  ;; Raw OHLC (split-adjusted only); the default back-adjusts for dividends and splits like python-yfinance auto_adjust=True
   (take 2 (fetch-historical "AAPL" :period "1mo" :auto-adjust false))
+
+  ;; As-traded OHLC: NVDA closes before the 2024-06-10 10:1 split come back in the 1000s
+  (take 2 (fetch-historical "NVDA" :period "5y" :split-adjust false))
 
   ;; How many post-split shares does one share bought on 2024-06-01 correspond to?
   (fetch-split-factor "NVDA" (java.time.Instant/parse "2024-06-01T23:59:59Z"))

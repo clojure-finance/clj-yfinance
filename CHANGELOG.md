@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.1.11 — 2026-11-08
+
+### Added
+
+- `fetch-historical` / `fetch-historical*` option `:split-adjust` (default
+  `true`): pass `false` to undo Yahoo's retroactive split adjustment and get
+  as-traded prices — `:open`/`:high`/`:low`/`:close` are multiplied (and
+  `:volume` divided) by the cumulative ratio of all splits after each row,
+  using the split events requested with the same chart call. Implies
+  `:auto-adjust false`; `:adj-close` stays Yahoo's fully adjusted series.
+  When `:end` is given, splits after the window (which still scale its
+  prices) are fetched with one extra request, and a failure of that request
+  fails the call rather than silently returning adjusted rows.
+- `clj-yfinance.parse/split-unadjust-rows`: the pure row transformation
+  behind `:split-adjust false`.
+
+### Changed
+
+- `cumulative-split-factor` / `fetch-split-factor` docs warn that Yahoo
+  occasionally books a spin-off as a split event (e.g. CTVA 2026-10-01, ratio
+  6.665): prices are adjusted by it, but share counts never changed, so such
+  events must be filtered out of share-count arithmetic. The README Caveats
+  section now also covers split adjustment and vanishing delisted tickers.
+
 ## 0.1.10 — 2026-10-31
 
 ### Added
