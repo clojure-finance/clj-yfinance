@@ -79,7 +79,7 @@
 
    The table name defaults to the ticker symbol (e.g. \"AAPL\").
    Options are passed through to fetch-historical:
-   :period, :interval, :start, :end, :auto-adjust, :prepost
+   :period, :interval, :start, :end, :auto-adjust, :split-adjust, :prepost
 
    Returns the number of rows inserted, or nil if fetch fails.
 
@@ -96,7 +96,7 @@
    defaulting to \"prices\".
 
    Options are passed through to fetch-historical:
-   :period, :interval, :start, :end, :auto-adjust, :prepost
+   :period, :interval, :start, :end, :auto-adjust, :split-adjust, :prepost
 
    Returns the number of rows inserted, or nil if all fetches fail.
 

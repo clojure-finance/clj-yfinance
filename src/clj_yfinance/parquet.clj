@@ -27,7 +27,7 @@
    Returns the dataset on success, nil if fetch fails or data is empty.
 
    Options are passed through to fetch-historical:
-   :period, :interval, :start, :end, :auto-adjust, :prepost
+   :period, :interval, :start, :end, :auto-adjust, :split-adjust, :prepost
 
    Examples:
    (save-historical! \"AAPL\" \"aapl.parquet\" :period \"5y\")
@@ -44,7 +44,7 @@
    Returns the combined dataset on success, nil if all fetches fail.
 
    Options are passed through to fetch-historical:
-   :period, :interval, :start, :end, :auto-adjust, :prepost
+   :period, :interval, :start, :end, :auto-adjust, :split-adjust, :prepost
 
    Examples:
    (save-multi-ticker! [\"AAPL\" \"GOOGL\" \"MSFT\"] \"tech.parquet\" :period \"1y\")

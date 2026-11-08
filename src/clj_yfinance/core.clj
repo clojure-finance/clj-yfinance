@@ -163,7 +163,7 @@
 
    Validation behavior:
      - Invalid values (period/interval not in allowed sets, :end without :start, start > end,
-       non-boolean :events) are rejected immediately with :invalid-opts error
+       non-boolean :events or :split-adjust) are rejected immediately with :invalid-opts error
      - Valid but incompatible combinations (e.g., 1m interval with 1mo period exceeding 7-day limit)
        generate warnings in :warnings key but don't fail—Yahoo's API will reject truly invalid requests"
   [ticker & {:keys [period interval start end auto-adjust prepost events split-adjust]
